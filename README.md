@@ -16,6 +16,8 @@ Abrir `index.html` en un navegador moderno. No requiere instalacion, servidor ni
 
 ## Controles
 
+### Desktop
+
 | Tecla | Accion |
 |-------|--------|
 | Flechas / WASD | Movimiento |
@@ -23,6 +25,15 @@ Abrir `index.html` en un navegador moderno. No requiere instalacion, servidor ni
 | X | Arma especial |
 | Enter | Confirmar / Seleccionar |
 | M | Mutear / Desmutear |
+
+### Mobile
+
+| Control | Accion |
+|---------|--------|
+| Joystick (izquierda) | Movimiento |
+| Boton A (derecha) | Disparo continuo |
+| Boton B (derecha) | Arma especial |
+| Tap en pantalla | Confirmar / Seleccionar |
 
 ## Aeronaves
 
@@ -40,49 +51,119 @@ Abrir `index.html` en un navegador moderno. No requiere instalacion, servidor ni
 4. **Supremacia Aerea** — Dogfight sobre las islas. Boss: Escolta de Destructores
 5. **Malvinas** — Asalto final. Boss: HMS Invincible
 
+## Enemigos
+
+### Aereos
+- **Sea Harrier** — Caza enemigo con multiples patrones de vuelo (recto, sinusoidal, picada, strafe)
+
+### Navales
+- **Fragata** — HP: 10, disparo simple dirigido
+- **Destructor** — HP: 20, rafaga de 3 disparos
+- **Portaaviones** — HP: 40, rafaga de 3 disparos, fuego rapido
+
+### Bosses
+- **Grupo de Fragatas** — HP: 60, disparos dirigidos
+- **Escolta de Destructores** — HP: 100, patron en abanico
+- **HMS Invincible** — HP: 150, rafagas circulares rotativas
+- Todos los bosses tienen 3 fases segun HP restante, aumentando velocidad y agresividad
+
+## Power-ups
+
+| Item | Efecto |
+|------|--------|
+| **P** | Mejora nivel de arma (single → doble → triple spread → doble + retaguardia) |
+| **S** | Aumenta velocidad de movimiento |
+| **B** | +1 carga de arma especial |
+| **L** | +1 vida |
+
+## Musica
+
+5 temas musicales MP3 que cambian segun el contexto:
+
+| Momento | Tema | Loop |
+|---------|------|------|
+| Pantalla de titulo | `music_title.mp3` | Si |
+| Gameplay (etapas) | `music_stage.mp3` | Si |
+| Pelea de boss | `music_boss.mp3` | Si |
+| Victoria / stage clear | `music_victory.mp3` | No |
+| Game over | `music_gameover.mp3` | No |
+
+Efectos de sonido procedurales 8-bit generados con Web Audio API (disparo, explosion, powerup, muerte, alarma de boss).
+
 ## Tech Stack
 
-- Vanilla JavaScript + HTML5 Canvas
-- ES Modules nativos (sin frameworks, sin bundler)
-- Resolucion interna 256x384 escalada con CSS pixelado
-- Web Audio API para musica y efectos procedurales 8-bit
+- **Vanilla JavaScript + HTML5 Canvas** — sin frameworks, sin bundler
+- **ES Modules nativos** (`<script type="module">`)
+- Resolucion interna **256x384** escalada con CSS pixelado
+- **Web Audio API** para musica (MP3) y efectos procedurales 8-bit
 - Sprites PNG con animaciones (explosiones de 5 frames)
+- Object pooling para proyectiles (200) y explosiones (50)
+- Fixed timestep a 60fps con acumulador de delta
+- Deteccion de colisiones AABB
+- Soporte mobile con controles tactiles (joystick + botones)
+- Compatible con GitHub Pages (sitio estatico)
 
 ## Estructura
 
 ```
 malvinasrv/
-├── index.html
-├── style.css
-├── assets/                    # Sprites PNG y musica MP3
+├── index.html                 # Entry point + controles tactiles mobile
+├── style.css                  # Layout responsive (desktop + mobile)
+├── README.md
+├── assets/
+│   ├── skyhawk.png            # Sprite A-4B Skyhawk
+│   ├── mirage.png             # Sprite Mirage IIIEA
+│   ├── dagger.png             # Sprite IAI Dagger
+│   ├── enemy_harrier.png      # Sprite Sea Harrier (rotado 180°)
+│   ├── enemy_ship.png         # Sprite fragata
+│   ├── enemy_destroyer.png    # Sprite destructor
+│   ├── enemy_carrier.png      # Sprite portaaviones
+│   ├── boss.png               # Sprite boss (battleship)
+│   ├── missile.png            # Sprite misil (arma especial Dagger)
+│   ├── bomb.png               # Sprite bomba (arma especial Skyhawk)
+│   ├── afterburner.png        # Sprite llamas postcombustion (Mirage)
+│   ├── title_art.png          # Arte de portada
+│   ├── explosion_0..4.png     # Animacion de explosion (5 frames)
+│   ├── music_title.mp3        # Musica titulo
+│   ├── music_stage.mp3        # Musica gameplay
+│   ├── music_boss.mp3         # Musica boss
+│   ├── music_victory.mp3      # Musica victoria
+│   └── music_gameover.mp3     # Musica game over
 ├── js/
-│   ├── main.js                # Boot y maquina de estados de escenas
+│   ├── main.js                # Boot, carga de assets, maquina de escenas
 │   ├── engine/
 │   │   ├── game-loop.js       # Loop con fixed timestep 60fps
-│   │   ├── input.js           # Teclado poll-based
-│   │   ├── renderer.js        # Canvas offscreen y escalado
+│   │   ├── input.js           # Teclado + controles tactiles (joystick, botones)
+│   │   ├── renderer.js        # Canvas offscreen 256x384, escalado pixelado
 │   │   ├── collision.js       # Deteccion AABB
-│   │   ├── audio.js           # Musica y SFX procedurales
-│   │   └── assets.js          # Carga de sprites PNG
+│   │   ├── audio.js           # Sistema de musica MP3 + SFX procedurales
+│   │   └── assets.js          # Precarga de sprites PNG
 │   ├── entities/
-│   │   ├── entity.js          # Clase base
-│   │   ├── player.js          # Jugador
-│   │   ├── enemy-plane.js     # Aviones enemigos (Harrier)
-│   │   ├── enemy-ship.js      # Barcos enemigos (fragata, destructor, portaaviones)
-│   │   ├── boss.js            # Jefes de etapa con fases
-│   │   ├── projectile.js      # Balas y misiles (pool de objetos)
-│   │   ├── explosion.js       # Explosiones animadas (pool de objetos)
+│   │   ├── entity.js          # Clase base (x, y, w, h, hp, vx, vy)
+│   │   ├── player.js          # Jugador (movimiento, disparo, especial, muerte, respawn)
+│   │   ├── enemy-plane.js     # Aviones enemigos (6 patrones de vuelo)
+│   │   ├── enemy-ship.js      # Barcos enemigos (3 tipos con sprites distintos)
+│   │   ├── boss.js            # Jefes de etapa (3 fases, patrones de fuego)
+│   │   ├── projectile.js      # Balas y misiles con sprites (pool de 200)
+│   │   ├── explosion.js       # Explosiones animadas 5 frames (pool de 50)
 │   │   └── powerup.js         # Power-ups (P, S, B, L)
 │   ├── scenes/
-│   │   ├── title-scene.js     # Pantalla de titulo
-│   │   ├── select-scene.js    # Seleccion de aeronave
-│   │   ├── game-scene.js      # Escena principal de juego
+│   │   ├── title-scene.js     # Pantalla de titulo con arte
+│   │   ├── select-scene.js    # Seleccion de aeronave con stats
+│   │   ├── game-scene.js      # Escena principal (briefing, gameplay, boss, stage clear)
 │   │   └── gameover-scene.js  # Game over / victoria
 │   ├── data/
-│   │   ├── aircraft.js        # Definiciones de aeronaves
-│   │   └── stages.js          # Oleadas y etapas
+│   │   ├── aircraft.js        # Definiciones de 3 aeronaves
+│   │   └── stages.js          # 5 etapas con oleadas
 │   └── sprites/
-│       └── sprites.js         # Sprites legacy
+│       └── sprites.js         # Sprites legacy (usado por powerups)
 ```
+
+## Deploy
+
+Sitio 100% estatico. Opciones gratuitas:
+
+- **GitHub Pages** — push a repo y activar en Settings > Pages
+- **Netlify / Vercel / Cloudflare Pages** — conectar repo o drag & drop
 
 ## Inspirado en nuestros heroes

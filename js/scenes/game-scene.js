@@ -462,12 +462,44 @@ export class GameScene {
 
     _spawnWave(wave) {
         if (wave.type === 'plane') {
+            const edge = wave.edge || 'top';
+            const hp = wave.hp || 1;
+            const points = wave.points || 100;
+
             for (let i = 0; i < wave.count; i++) {
-                const x = wave.startX + (i % 4) * wave.spacing;
-                const y = -10 - i * 20;
-                const hp = wave.hp || 1;
-                const points = wave.points || 100;
-                this.enemies.push(new EnemyPlane(x, y, wave.pattern, hp, points));
+                let x, y;
+                switch (edge) {
+                    case 'bottom':
+                        x = wave.startX + (i % 4) * wave.spacing;
+                        y = HEIGHT + 10 + i * 20;
+                        break;
+                    case 'left':
+                        x = -20;
+                        y = (wave.startY || 60) + i * wave.spacing;
+                        break;
+                    case 'right':
+                        x = WIDTH + 20;
+                        y = (wave.startY || 60) + i * wave.spacing;
+                        break;
+                    default: // top
+                        x = wave.startX + (i % 4) * wave.spacing;
+                        y = -10 - i * 20;
+                        break;
+                }
+
+                const plane = new EnemyPlane(x, y, wave.pattern, hp, points);
+
+                // V-formation offsets
+                if (wave.pattern === 'formation_v') {
+                    const leader = wave.count >> 1;
+                    const offset = i - leader;
+                    plane.startX = wave.startX + offset * 22;
+                    plane.x = plane.startX;
+                    plane.y = -10 - Math.abs(offset) * 15;
+                    plane.startY = plane.y;
+                }
+
+                this.enemies.push(plane);
             }
         } else if (wave.type === 'ship') {
             this.enemies.push(new EnemyShip(wave.startX, -15, wave.shipType));

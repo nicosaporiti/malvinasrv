@@ -43,10 +43,28 @@ export class EnemyShip extends Entity {
         this.fireTimer = 0.5 + Math.random();
     }
 
-    update(dt) {
+    update(dt, playerX, playerY) {
         this.age += dt;
+
+        // Lateral drift for larger ships
+        if (this.shipType === 'destroyer' || this.shipType === 'carrier') {
+            this.vx = Math.sin(this.age * 0.8) * 12;
+        }
+
+        // Evasive movement when player is directly above
+        if (playerX !== undefined) {
+            const dx = playerX - this.centerX();
+            if (Math.abs(dx) < 30 && this.y > 40) {
+                this.vx += (dx > 0 ? -40 : 40) * dt;
+            }
+        }
+
         super.update(dt);
         this.fireTimer -= dt;
+
+        // Clamp horizontal
+        if (this.x < 2) this.x = 2;
+        if (this.x + this.w > WIDTH - 2) this.x = WIDTH - this.w - 2;
 
         if (this.y > HEIGHT + 30) {
             this.alive = false;
