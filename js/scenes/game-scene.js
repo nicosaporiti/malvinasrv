@@ -122,6 +122,7 @@ export class GameScene {
             this._setState(STATE_BOSS_INTRO);
             this.boss = new Boss(this.stage.bossType);
             Audio.bossAlarm();
+            Audio.playMusic('boss');
         }
 
         if (!this.player.alive && !this.player.dead) {
@@ -133,14 +134,31 @@ export class GameScene {
     // --- BOSS INTRO ---
     _updateBossIntro(dt, input) {
         this.scrollY += 20 * dt;
-        this.boss.update(dt, this.player.centerX());
+        const px = this.player.centerX();
+        const py = this.player.centerY();
+        this.boss.update(dt, px, py);
+
+        // Turrets fire as they scroll into view during intro
+        this._bossTurretsFire(px, py);
+
         this._updatePlayer(dt, input);
         this._updateProjectiles(dt);
         this._updateExplosions(dt);
 
-        if (!this.boss.entering) {
+        // Player can shoot turrets during intro
+        this._bossCollisions();
+
+        // Check if boss defeated during intro (all turrets destroyed before full entry)
+        if (!this.boss.defeated && this.boss.isDefeated()) {
+            this.boss.startDeathSequence();
+            Audio.bigExplosion();
+            this.screenShake = 1.0;
+            for (const p of getProjectilePool()) {
+                if (!p.isPlayer) p.alive = false;
+            }
             this._setState(STATE_BOSS);
-            Audio.playMusic('boss');
+        } else if (!this.boss.entering) {
+            this._setState(STATE_BOSS);
         }
         return null;
     }
@@ -148,37 +166,112 @@ export class GameScene {
     // --- BOSS ---
     _updateBoss(dt, input) {
         this.scrollY += 10 * dt;
+        const px = this.player.centerX();
+        const py = this.player.centerY();
 
-        this.boss.update(dt, this.player.centerX());
+        this.boss.update(dt, px, py);
 
-        // Boss fires
-        if (this.boss.canFire()) {
-            const bullets = this.boss.getFirePattern(this.player.centerX(), this.player.centerY());
-            for (const b of bullets) {
-                spawnProjectile(b.x, b.y, b.vx, b.vy, 1, false);
-            }
-            Audio.enemyShoot();
+        // Turret firing
+        if (!this.boss.defeated) {
+            this._bossTurretsFire(px, py);
         }
 
         this._updatePlayer(dt, input);
         this._updateProjectiles(dt);
         this._updateExplosions(dt);
 
-        // Player bullets vs boss
-        const projectiles = getProjectilePool();
-        for (const p of projectiles) {
-            if (!p.alive || !p.isPlayer) continue;
-            if (p.x < this.boss.x + this.boss.w && p.x + p.w > this.boss.x &&
-                p.y < this.boss.y + this.boss.h && p.y + p.h > this.boss.y) {
-                this.boss.takeDamage(p.damage);
-                p.alive = false;
-                Audio.hit();
-                spawnExplosion(p.x, p.y, 12);
+        // Collisions
+        this._bossCollisions();
+
+        // Check defeat — start chain explosion sequence
+        if (!this.boss.defeated && this.boss.isDefeated()) {
+            this.boss.startDeathSequence();
+            Audio.bigExplosion();
+            this.screenShake = 1.0;
+            // Clear all enemy bullets so player can't die after winning
+            for (const p of getProjectilePool()) {
+                if (!p.isPlayer) p.alive = false;
             }
         }
 
+        // Chain explosions during death sequence
+        if (this.boss.defeated) {
+            this.screenShake = 0.8;
+            if (this.boss.shouldChainExplode(dt)) {
+                const pos = this.boss.getRandomHullPos();
+                spawnExplosion(pos.x, pos.y, 16 + Math.random() * 20);
+                if (Math.random() < 0.3) Audio.explosion();
+            }
+        }
+
+        // Boss fully dead (death timer expired)
+        if (!this.boss.alive) {
+            this.player.score += this.boss.points;
+            Audio.bigExplosion();
+            spawnExplosion(this.boss.centerX(), this.boss.centerY(), 56);
+            spawnExplosion(this.boss.x + this.boss.w * 0.25, this.boss.y + this.boss.h * 0.3, 40);
+            spawnExplosion(this.boss.x + this.boss.w * 0.75, this.boss.y + this.boss.h * 0.7, 40);
+            this.screenShake = 0.8;
+            this.boss = null;
+            this._setState(STATE_STAGE_CLEAR);
+            Audio.playMusic('victory', false);
+        }
+
+        if (!this.player.alive && !this.player.dead) {
+            return { scene: 'gameover', score: this.player.score, stageIndex: this.stageIndex };
+        }
+        return null;
+    }
+
+    // --- Boss turret firing (shared by intro and boss states) ---
+    _bossTurretsFire(playerX, playerY) {
+        if (!this.boss || this.boss.defeated) return;
+        for (const t of this.boss.turrets) {
+            if (t.canFire(this.boss.y)) {
+                const bullets = t.getFirePattern(playerX, playerY, this.boss.x, this.boss.y);
+                for (const b of bullets) {
+                    spawnProjectile(b.x, b.y, b.vx, b.vy, 1, false);
+                }
+                Audio.enemyShoot();
+            }
+        }
+    }
+
+    // --- Boss collision detection (turret-by-turret) ---
+    _bossCollisions() {
+        if (!this.boss || !this.boss.alive) return;
+        const projectiles = getProjectilePool();
+
+        // Player bullets vs turrets
+        for (const p of projectiles) {
+            if (!p.alive || !p.isPlayer) continue;
+
+            let hitTurret = false;
+            for (const t of this.boss.turrets) {
+                if (!t.alive) continue;
+                const tx = t.worldX(this.boss.x);
+                const ty = t.worldY(this.boss.y);
+                if (p.x < tx + t.w && p.x + p.w > tx &&
+                    p.y < ty + t.h && p.y + p.h > ty) {
+                    t.takeDamage(p.damage);
+                    p.alive = false;
+                    Audio.hit();
+                    spawnExplosion(p.x, p.y, 8);
+                    hitTurret = true;
+                    if (!t.alive) {
+                        Audio.explosion();
+                        spawnExplosion(t.centerX(this.boss.x), t.centerY(this.boss.y), 28);
+                        this.screenShake = 0.25;
+                    }
+                    break;
+                }
+            }
+
+            // Bullets pass through hull — only turrets block them
+        }
+
         // Enemy bullets vs player
-        if (!this.player.dead) {
+        if (!this.player.dead && !this.player.invincible && this.player.shieldTimer <= 0) {
             for (const p of projectiles) {
                 if (!p.alive || p.isPlayer) continue;
                 if (p.x < this.player.x + this.player.w && p.x + p.w > this.player.x &&
@@ -191,24 +284,6 @@ export class GameScene {
                 }
             }
         }
-
-        // Boss dead
-        if (!this.boss.alive) {
-            this.player.score += this.boss.points;
-            Audio.bigExplosion();
-            spawnExplosion(this.boss.centerX(), this.boss.centerY(), 48);
-            spawnExplosion(this.boss.x, this.boss.y, 32);
-            spawnExplosion(this.boss.x + this.boss.w, this.boss.y + this.boss.h, 32);
-            this.screenShake = 0.5;
-            this.boss = null;
-            this._setState(STATE_STAGE_CLEAR);
-            Audio.playMusic('victory', false);
-        }
-
-        if (!this.player.alive && !this.player.dead) {
-            return { scene: 'gameover', score: this.player.score, stageIndex: this.stageIndex };
-        }
-        return null;
     }
 
     // --- STAGE CLEAR ---
@@ -298,9 +373,19 @@ export class GameScene {
                             }
                         }
                     }
-                    if (this.boss && this.boss.alive) {
-                        this.boss.takeDamage(15);
-                        spawnExplosion(this.boss.centerX(), this.boss.centerY(), 36);
+                    if (this.boss && this.boss.alive && !this.boss.defeated) {
+                        const target = this.boss.getStrongestTurret();
+                        if (target) {
+                            target.takeDamage(15);
+                            spawnExplosion(
+                                target.centerX(this.boss.x),
+                                target.centerY(this.boss.y), 36
+                            );
+                            if (!target.alive) {
+                                Audio.explosion();
+                                this.screenShake = 0.25;
+                            }
+                        }
                     }
                     this.screenShake = 0.5;
                 }, 400);
@@ -620,12 +705,13 @@ export class GameScene {
         renderer.drawText(`W${this.player.weaponLevel}`, 120, 4, '#88aadd');
 
         // Boss health bar
-        if (this.boss && this.boss.alive && this.state === STATE_BOSS) {
+        if (this.boss && this.boss.alive && (this.state === STATE_BOSS || this.state === STATE_BOSS_INTRO)) {
             renderer.drawRect(0, HEIGHT - 14, WIDTH, 14, 'rgba(0,0,0,0.7)');
             renderer.drawText(this.boss.name, 4, HEIGHT - 12, '#ff6644');
             const barW = 100;
             const barX = WIDTH - barW - 4;
-            renderer.drawBar(barX, HEIGHT - 10, barW, 6, this.boss.hp / this.boss.maxHp, '#ff4444', '#331111');
+            const hpRatio = this.boss.getTotalHp() / this.boss.totalMaxHp;
+            renderer.drawBar(barX, HEIGHT - 10, barW, 6, hpRatio, '#ff4444', '#331111');
         }
     }
 

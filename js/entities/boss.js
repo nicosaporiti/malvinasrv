@@ -1,124 +1,178 @@
 import { Entity } from './entity.js';
-import { WIDTH } from '../engine/renderer.js';
+import { WIDTH, HEIGHT } from '../engine/renderer.js';
 import { getImage } from '../engine/assets.js';
+import { BossTurret } from './boss-turret.js';
 
-const BOSS_W = 30;
-const BOSS_H = 90;
+const BOSS_CONFIGS = {
+    frigate_group: {
+        w: 122, h: 612,
+        name: 'DESTRUCTOR TYPE 42',
+        points: 10000,
+        sprite: 'boss_frigate',
+        turrets: [
+            { offsetX: 35,  offsetY: 80,  type: 'single', hp: 15, cooldown: 1.0 },
+            { offsetX: 63,  offsetY: 80,  type: 'single', hp: 15, cooldown: 1.0 },
+            { offsetX: 30,  offsetY: 270, type: 'spread', hp: 15, cooldown: 1.2 },
+            { offsetX: 68,  offsetY: 270, type: 'spread', hp: 15, cooldown: 1.2 },
+        ],
+    },
+    destroyer_escort: {
+        w: 128, h: 495,
+        name: 'HMS SHEFFIELD',
+        points: 20000,
+        sprite: 'boss_destroyer',
+        turrets: [
+            { offsetX: 38,  offsetY: 50,  type: 'single',   hp: 15, cooldown: 0.9 },
+            { offsetX: 66,  offsetY: 50,  type: 'single',   hp: 15, cooldown: 0.9 },
+            { offsetX: 28,  offsetY: 180, type: 'spread',   hp: 18, cooldown: 1.0 },
+            { offsetX: 76,  offsetY: 180, type: 'spread',   hp: 18, cooldown: 1.0 },
+            { offsetX: 32,  offsetY: 340, type: 'circular', hp: 17, cooldown: 1.2 },
+            { offsetX: 72,  offsetY: 340, type: 'circular', hp: 17, cooldown: 1.2 },
+        ],
+    },
+    hms_invincible: {
+        w: 160, h: 284,
+        name: 'HMS INVINCIBLE',
+        points: 50000,
+        sprite: 'boss_carrier',
+        turrets: [
+            { offsetX: 8,   offsetY: 20,  type: 'single',   hp: 18, cooldown: 0.7 },
+            { offsetX: 128, offsetY: 20,  type: 'single',   hp: 18, cooldown: 0.7 },
+            { offsetX: 3,   offsetY: 90,  type: 'spread',   hp: 20, cooldown: 0.8 },
+            { offsetX: 133, offsetY: 90,  type: 'spread',   hp: 20, cooldown: 0.8 },
+            { offsetX: 6,   offsetY: 160, type: 'spread',   hp: 18, cooldown: 0.9 },
+            { offsetX: 130, offsetY: 160, type: 'spread',   hp: 18, cooldown: 0.9 },
+            { offsetX: 13,  offsetY: 225, type: 'circular', hp: 19, cooldown: 1.0 },
+            { offsetX: 123, offsetY: 225, type: 'circular', hp: 19, cooldown: 1.0 },
+        ],
+    },
+};
 
 export class Boss extends Entity {
     constructor(bossType = 'frigate_group') {
-        super(WIDTH / 2 - BOSS_W / 2, -BOSS_H, BOSS_W, BOSS_H);
+        const config = BOSS_CONFIGS[bossType];
+        super(WIDTH / 2 - config.w / 2, -config.h, config.w, config.h);
+
         this.bossType = bossType;
         this.type = 'boss';
-        this.age = 0;
-        this.phase = 0;
+        this.name = config.name;
+        this.points = config.points;
+        this.config = config;
+        this.spriteKey = config.sprite;
+
+        // Turrets
+        this.turrets = config.turrets.map(t => new BossTurret(t));
+        this.totalMaxHp = this.turrets.reduce((sum, t) => sum + t.maxHp, 0);
+
+        // Movement — boss scrolls through, doesn't stop
         this.entering = true;
-        this.targetY = 30;
+        this.scrollSpeed = 12;     // px/s — slow scroll down
+        this.age = 0;
         this.canDrop = false;
 
-        switch (bossType) {
-            case 'frigate_group':
-                this.hp = 60;
-                this.maxHp = 60;
-                this.points = 10000;
-                this.fireCooldown = 0.4;
-                this.name = 'GRUPO DE FRAGATAS';
-                break;
-            case 'destroyer_escort':
-                this.hp = 100;
-                this.maxHp = 100;
-                this.points = 20000;
-                this.fireCooldown = 0.3;
-                this.name = 'ESCOLTA DE DESTRUCTORES';
-                break;
-            case 'hms_invincible':
-                this.hp = 150;
-                this.maxHp = 150;
-                this.points = 50000;
-                this.fireCooldown = 0.25;
-                this.name = 'HMS INVINCIBLE';
-                break;
-        }
-
-        this.fireTimer = 2;
-        this.moveDir = 1;
+        // Death sequence
+        this.defeated = false;
+        this.deathTimer = 0;
+        this.deathExplosionTimer = 0;
+        this.alive = true;
     }
 
-    update(dt, playerX) {
+    update(dt, playerX, playerY) {
         this.age += dt;
 
-        if (this.entering) {
-            this.y += 30 * dt;
-            if (this.y >= this.targetY) {
-                this.y = this.targetY;
-                this.entering = false;
-            }
-            return;
+        // Boss scrolls down slowly, but clamp so lowest turret stays on screen
+        if (!this.defeated) {
+            this.y += this.scrollSpeed * dt;
+            // Find the lowest turret and ensure it doesn't go below viewport
+            const lowestTurretY = Math.max(...this.turrets.map(t => t.offsetY + t.h));
+            const maxY = HEIGHT - lowestTurretY - 20;
+            if (this.y > maxY) this.y = maxY;
         }
 
-        // Side-to-side movement
-        this.x += this.moveDir * 40 * dt;
-        if (this.x > WIDTH - this.w - 10) this.moveDir = -1;
-        if (this.x < 10) this.moveDir = 1;
+        // Entering flag: false once the full ship is visible
+        if (this.entering && this.y >= 0) {
+            this.entering = false;
+        }
 
-        // Phase changes based on HP
-        const hpRatio = this.hp / this.maxHp;
-        if (hpRatio < 0.3) this.phase = 2;
-        else if (hpRatio < 0.6) this.phase = 1;
+        // Update turrets
+        for (const t of this.turrets) {
+            t.update(dt, playerX, playerY, this.x, this.y);
+        }
 
-        this.fireTimer -= dt;
+        // Death sequence
+        if (this.defeated) {
+            this.deathTimer += dt;
+            if (this.deathTimer >= 2.5) {
+                this.alive = false;
+            }
+        }
     }
 
-    canFire() {
-        if (this.entering) return false;
-        if (this.fireTimer <= 0) {
-            this.fireTimer = this.fireCooldown - this.phase * 0.05;
+    getTotalHp() {
+        return this.turrets.reduce((sum, t) => sum + (t.alive ? t.hp : 0), 0);
+    }
+
+    isDefeated() {
+        return this.turrets.every(t => !t.alive);
+    }
+
+    startDeathSequence() {
+        this.defeated = true;
+        this.deathTimer = 0;
+        this.deathExplosionTimer = 0;
+    }
+
+    shouldChainExplode(dt) {
+        if (!this.defeated) return false;
+        this.deathExplosionTimer += dt;
+        if (this.deathExplosionTimer >= 0.12) {
+            this.deathExplosionTimer -= 0.12;
             return true;
         }
         return false;
     }
 
-    getFirePattern(playerX, playerY) {
-        const cx = this.centerX();
-        const cy = this.y + this.h;
-        const bullets = [];
+    getRandomHullPos() {
+        const marginX = this.w * 0.2;
+        const marginY = this.h * 0.05;
+        return {
+            x: this.x + marginX + Math.random() * (this.w - marginX * 2),
+            y: Math.max(0, Math.min(HEIGHT, this.y + marginY + Math.random() * (this.h - marginY * 2))),
+        };
+    }
 
-        if (this.phase === 0) {
-            // Aimed shots
-            const dx = playerX - cx;
-            const dy = playerY - cy;
-            const len = Math.sqrt(dx * dx + dy * dy) || 1;
-            bullets.push({ x: cx, y: cy, vx: (dx / len) * 130, vy: (dy / len) * 130 });
-        } else if (this.phase === 1) {
-            // Spread
-            for (let a = -30; a <= 30; a += 15) {
-                const rad = (a + 90) * Math.PI / 180;
-                bullets.push({ x: cx, y: cy, vx: Math.cos(rad) * 110, vy: Math.sin(rad) * 110 });
-            }
-        } else {
-            // Fury mode - circular burst
-            const numBullets = 8;
-            const offsetAngle = this.age * 2;
-            for (let i = 0; i < numBullets; i++) {
-                const rad = (i / numBullets) * Math.PI * 2 + offsetAngle;
-                bullets.push({ x: cx, y: cy, vx: Math.cos(rad) * 100, vy: Math.sin(rad) * 100 });
+    getStrongestTurret() {
+        let best = null;
+        let bestHp = 0;
+        for (const t of this.turrets) {
+            if (t.alive && t.hp > bestHp) {
+                best = t;
+                bestHp = t.hp;
             }
         }
-
-        return bullets;
+        return best;
     }
 
     render(renderer) {
-        const img = getImage('boss');
+        // Draw ship sprite scaled to boss size
+        const img = getImage(this.spriteKey);
         if (img) {
             renderer.drawImage(img, this.x, this.y, this.w, this.h);
         } else {
             renderer.drawRect(this.x, this.y, this.w, this.h, '#556677');
         }
 
-        // Flash on damage
-        if (this.age % 0.1 < 0.02 && this.phase >= 1) {
-            renderer.drawRect(this.x, this.y, this.w, this.h, 'rgba(255,100,100,0.3)');
+        // Damage flash when defeated
+        if (this.defeated && Math.floor(this.age * 10) % 2 === 0) {
+            renderer.drawRect(this.x, this.y, this.w, this.h, 'rgba(255,100,50,0.15)');
+        }
+
+        // Draw turrets
+        for (const t of this.turrets) {
+            const wy = t.worldY(this.y);
+            if (wy > -20 && wy < HEIGHT + 20) {
+                t.render(renderer, this.x, this.y);
+            }
         }
     }
 }
