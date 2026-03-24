@@ -8,6 +8,14 @@ import { SelectScene } from './scenes/select-scene.js';
 import { GameScene } from './scenes/game-scene.js';
 import { GameOverScene } from './scenes/gameover-scene.js';
 
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+            console.error('Service worker registration failed:', err);
+        });
+    });
+}
+
 const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas);
 const input = new Input();

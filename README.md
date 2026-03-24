@@ -14,6 +14,27 @@ Abrir `index.html` en un navegador moderno. No requiere instalacion, servidor ni
 > ```
 > Luego abrir `http://localhost:8080`
 
+## PWA
+
+El juego ahora puede instalarse como **Progressive Web App** en navegadores compatibles.
+
+- Incluye `manifest.webmanifest` para instalacion en modo standalone
+- Registra un `service worker` (`sw.js`) para soporte offline
+- Usa iconos de app en `assets/icons/`
+- Funciona mejor servido por `http://localhost` o por HTTPS
+
+### Instalar
+
+- **Desktop / Android (Chrome, Edge)**: abrir el sitio y usar "Instalar app" en la barra del navegador
+- **iPhone / iPad (Safari)**: abrir el sitio, tocar "Compartir" y luego "Agregar a pantalla de inicio"
+
+### Offline y actualizaciones
+
+- La PWA precachea `index.html`, `style.css`, `manifest.webmanifest`, todos los modulos de `js/` y todos los `assets/`
+- El `service worker` usa estrategia **network-first** para HTML, JS, sprites y audio
+- Si hay conexion, descarga la version nueva y actualiza la cache automaticamente
+- Si no hay conexion, responde con la version cacheada para que el juego siga abriendo offline
+
 ## Controles
 
 ### Desktop
@@ -101,6 +122,7 @@ Efectos de sonido procedurales 8-bit generados con Web Audio API (disparo, explo
 - Fixed timestep a 60fps con acumulador de delta
 - Deteccion de colisiones AABB
 - Soporte mobile con controles tactiles (joystick + botones)
+- **PWA** con `manifest.webmanifest` + `service worker`
 - Compatible con GitHub Pages (sitio estatico)
 
 ## Estructura
@@ -108,9 +130,15 @@ Efectos de sonido procedurales 8-bit generados con Web Audio API (disparo, explo
 ```
 malvinasrv/
 ├── index.html                 # Entry point + controles tactiles mobile
+├── manifest.webmanifest       # Metadata de instalacion PWA
 ├── style.css                  # Layout responsive (desktop + mobile)
 ├── README.md
+├── sw.js                      # Service worker: offline + cache de assets
 ├── assets/
+│   ├── icons/
+│   │   ├── icon-192.png       # Icono PWA 192x192
+│   │   ├── icon-512.png       # Icono PWA 512x512
+│   │   └── apple-touch-icon.png # Icono para Add to Home Screen en iOS
 │   ├── skyhawk.png            # Sprite A-4B Skyhawk
 │   ├── mirage.png             # Sprite Mirage IIIEA
 │   ├── dagger.png             # Sprite IAI Dagger
@@ -165,5 +193,7 @@ Sitio 100% estatico. Opciones gratuitas:
 
 - **GitHub Pages** — push a repo y activar en Settings > Pages
 - **Netlify / Vercel / Cloudflare Pages** — conectar repo o drag & drop
+
+Para instalacion PWA fuera de desarrollo, servir siempre por **HTTPS**.
 
 ## Inspirado en nuestros heroes
