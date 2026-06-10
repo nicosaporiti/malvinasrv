@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# gstack tooling (browse daemon, logs, tokens)
+.gstack/
+
+# Claude Code local settings
+.claude/
+
+# Logs
+*.log
