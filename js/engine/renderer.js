@@ -1,6 +1,8 @@
 export const WIDTH = 256;
 export const HEIGHT = 384;
 
+import { getOcean } from './background.js';
+
 export class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
@@ -12,6 +14,8 @@ export class Renderer {
         this.offscreen.height = HEIGHT;
         this.offCtx = this.offscreen.getContext('2d');
         this.offCtx.imageSmoothingEnabled = false;
+
+        this.ocean = getOcean();
     }
 
     clear(color = '#1a3a5c') {
@@ -53,36 +57,13 @@ export class Renderer {
         this.offCtx.textAlign = 'left';
     }
 
-    drawOceanBackground(scrollY) {
-        this.clear('#0a2a4a');
+    drawOceanBackground(scrollY, theme = 'open', withClouds = true) {
+        this.ocean.setTheme(theme);
+        this.ocean.render(this.offCtx, scrollY, withClouds);
+    }
 
-        // Wave lines
-        const waveSpacing = 32;
-        const offset = scrollY % waveSpacing;
-        this.offCtx.strokeStyle = '#0d3358';
-        this.offCtx.lineWidth = 1;
-        for (let y = -waveSpacing + offset; y < HEIGHT + waveSpacing; y += waveSpacing) {
-            this.offCtx.beginPath();
-            for (let x = 0; x < WIDTH; x += 4) {
-                const wy = y + Math.sin((x + scrollY * 0.5) * 0.05) * 3;
-                if (x === 0) this.offCtx.moveTo(x, wy);
-                else this.offCtx.lineTo(x, wy);
-            }
-            this.offCtx.stroke();
-        }
-
-        // Lighter wave layer
-        const offset2 = (scrollY * 0.7) % (waveSpacing * 1.5);
-        this.offCtx.strokeStyle = '#0f3d6b';
-        for (let y = -waveSpacing + offset2; y < HEIGHT + waveSpacing; y += waveSpacing * 1.5) {
-            this.offCtx.beginPath();
-            for (let x = 0; x < WIDTH; x += 4) {
-                const wy = y + Math.sin((x + scrollY * 0.3) * 0.08) * 2;
-                if (x === 0) this.offCtx.moveTo(x, wy);
-                else this.offCtx.lineTo(x, wy);
-            }
-            this.offCtx.stroke();
-        }
+    drawCloudLayer(scrollY) {
+        this.ocean.renderCloudLayer(this.offCtx, scrollY);
     }
 
     drawImage(img, x, y, w, h) {

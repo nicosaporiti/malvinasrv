@@ -1,4 +1,4 @@
-const CACHE_NAME = 'malvinas-srv-v1';
+const CACHE_NAME = 'malvinas-srv-v3';
 
 const PRECACHE_URLS = [
     './',
@@ -10,6 +10,7 @@ const PRECACHE_URLS = [
     'js/data/stages.js',
     'js/engine/assets.js',
     'js/engine/audio.js',
+    'js/engine/background.js',
     'js/engine/collision.js',
     'js/engine/game-loop.js',
     'js/engine/input.js',

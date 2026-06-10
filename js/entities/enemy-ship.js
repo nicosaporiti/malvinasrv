@@ -43,7 +43,7 @@ export class EnemyShip extends Entity {
         this.fireTimer = 0.5 + Math.random();
     }
 
-    update(dt, playerX, playerY) {
+    update(dt, playerX, playerY, islands) {
         this.age += dt;
 
         // Lateral drift for larger ships
@@ -59,6 +59,8 @@ export class EnemyShip extends Entity {
             }
         }
 
+        this._avoidIslands(islands);
+
         super.update(dt);
         this.fireTimer -= dt;
 
@@ -69,6 +71,49 @@ export class EnemyShip extends Entity {
         if (this.y > HEIGHT + 30) {
             this.alive = false;
         }
+    }
+
+    // Ships are slower than the scroll, so islands overtake them from above:
+    // steer sideways around the nearest island closing in on our column.
+    _avoidIslands(islands) {
+        if (!islands || !islands.length) {
+            this._dodge = null;
+            return;
+        }
+        let threat = null;
+        let threatGap = Infinity;
+        for (const r of islands) {
+            if (r.x > this.x + this.w + 6 || r.x + r.w < this.x - 6) continue;
+            if (r.y > this.y + this.h) continue;       // already passed us
+            const gap = this.y - (r.y + r.h);           // island bottom -> ship top
+            if (gap > 170) continue;                    // too far above to matter
+            if (gap < threatGap) { threatGap = gap; threat = r; }
+        }
+        if (!threat) {
+            this._dodge = null;
+            return;
+        }
+
+        // Commit to one side per island so the ship never flip-flops under it.
+        // Always escape toward the side that does not require crossing the
+        // island; only cross when that side has no room on screen.
+        const margin = 6;
+        const key = threat.x * 1000 + threat.w;
+        let goLeft;
+        if (this._dodge && this._dodge.key === key) {
+            goLeft = this._dodge.goLeft;
+        } else {
+            const leftTarget = threat.x - this.w - margin;
+            const rightTarget = threat.x + threat.w + margin;
+            goLeft = this.centerX() <= threat.x + threat.w / 2;
+            if (goLeft && leftTarget < 2) goLeft = false;
+            else if (!goLeft && rightTarget + this.w > WIDTH - 2) goLeft = true;
+            this._dodge = { key, goLeft };
+        }
+
+        const target = goLeft ? threat.x - this.w - margin : threat.x + threat.w + margin;
+        const delta = Math.max(2, Math.min(WIDTH - this.w - 2, target)) - this.x;
+        this.vx = Math.max(-55, Math.min(55, delta * 1.8));
     }
 
     canFire() {

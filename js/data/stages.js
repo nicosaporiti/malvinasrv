@@ -5,6 +5,7 @@ export const STAGES = [
         subtitle: 'Mar abierto - Intercepcion',
         briefing: '1 de Mayo, 1982. Despegue desde Rio Grande.\nMision: interceptar patrulla enemiga.',
         bgColor: '#0a2a4a',
+        seaTheme: 'open',
         length: 8000,
         bossType: 'frigate_group',
         waves: [
@@ -85,6 +86,7 @@ export const STAGES = [
         subtitle: 'Patrullas pesadas',
         briefing: 'Entrando en la zona de exclusion britanica.\nEnemigos en alerta maxima.',
         bgColor: '#082040',
+        seaTheme: 'dusk',
         length: 9000,
         bossType: 'destroyer_escort',
         waves: [
@@ -180,6 +182,7 @@ export const STAGES = [
         subtitle: 'Bomb Alley',
         briefing: 'San Carlos Water. Maxima concentracion naval.\nEsquivar el fuego antiaereo.',
         bgColor: '#061830',
+        seaTheme: 'strait',
         length: 10000,
         bossType: 'hms_invincible',
         waves: [
@@ -292,6 +295,7 @@ export const STAGES = [
         subtitle: 'Dogfight sobre las islas',
         briefing: 'Cielos sobre Malvinas. Escuadrones Harrier.\nObtener superioridad aerea.',
         bgColor: '#0a3020',
+        seaTheme: 'islands',
         length: 9000,
         bossType: 'destroyer_escort',
         waves: [
@@ -398,6 +402,7 @@ export const STAGES = [
         subtitle: 'Asalto final',
         briefing: 'Islas Malvinas a la vista. Tropas en tierra\nnecesitan apoyo aereo inmediato.',
         bgColor: '#0a2a1a',
+        seaTheme: 'malvinas',
         length: 10000,
         bossType: 'hms_invincible',
         waves: [

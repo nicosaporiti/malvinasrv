@@ -9,6 +9,7 @@ import { spawnProjectile, getProjectilePool } from '../entities/projectile.js';
 import { spawnExplosion, getExplosionPool } from '../entities/explosion.js';
 import { PowerUp, randomPowerType } from '../entities/powerup.js';
 import { STAGES } from '../data/stages.js';
+import { getOcean } from '../engine/background.js';
 
 const STATE_BRIEFING = 'briefing';
 const STATE_PLAYING = 'playing';
@@ -63,6 +64,7 @@ export class GameScene {
         this.state = STATE_BRIEFING;
         this.stateTimer = 0;
         this.screenShake = 0;
+        getOcean().clearIslandCutoff();
 
         // Reset projectile pool
         for (const p of getProjectilePool()) p.alive = false;
@@ -119,6 +121,8 @@ export class GameScene {
 
         // Check if scroll reached boss trigger
         if (this.scrollPos >= this.stage.length && this.enemies.every(e => !e.alive)) {
+            // Clear the sea ahead so no island scrolls under the boss
+            getOcean().setIslandCutoff(-(this.scrollY + 160));
             this._setState(STATE_BOSS_INTRO);
             this.boss = new Boss(this.stage.bossType);
             Audio.bossAlarm();
@@ -416,6 +420,7 @@ export class GameScene {
     _updateEnemies(dt) {
         const px = this.player.centerX();
         const py = this.player.centerY();
+        const islands = getOcean().islandsNear(this.scrollY);
 
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const e = this.enemies[i];
@@ -425,7 +430,7 @@ export class GameScene {
             }
 
             if (e.update.length > 1) {
-                e.update(dt, px, py);
+                e.update(dt, px, py, islands);
             } else {
                 e.update(dt);
             }
@@ -587,7 +592,22 @@ export class GameScene {
                 this.enemies.push(plane);
             }
         } else if (wave.type === 'ship') {
-            this.enemies.push(new EnemyShip(wave.startX, -15, wave.shipType));
+            const ship = new EnemyShip(wave.startX, -15, wave.shipType);
+            // If the spawn column has an island on or just above it, shift the
+            // ship to the nearest open water before it appears
+            for (const r of getOcean().islandsNear(this.scrollY)) {
+                if (r.y + r.h < -200 || r.y > 60) continue;
+                if (ship.x + ship.w < r.x - 6 || ship.x > r.x + r.w + 6) continue;
+                const left = r.x - ship.w - 8;
+                const right = r.x + r.w + 8;
+                const preferLeft = ship.centerX() <= r.x + r.w / 2;
+                if ((preferLeft && left >= 2) || right + ship.w > WIDTH - 2) {
+                    ship.x = Math.max(2, left);
+                } else {
+                    ship.x = Math.min(WIDTH - ship.w - 2, right);
+                }
+            }
+            this.enemies.push(ship);
         }
     }
 
@@ -603,7 +623,8 @@ export class GameScene {
         renderer.offCtx.save();
         renderer.offCtx.translate(shakeX, shakeY);
 
-        renderer.drawOceanBackground(this.scrollY);
+        const cloudsInBg = this.state === STATE_BRIEFING || this.state === STATE_TRANSITION;
+        renderer.drawOceanBackground(this.scrollY, this.stage.seaTheme, cloudsInBg);
 
         switch (this.state) {
             case STATE_BRIEFING:
@@ -678,6 +699,9 @@ export class GameScene {
         for (const e of getExplosionPool()) {
             if (e.alive) e.render(renderer);
         }
+
+        // Clouds drift over everything at sea level (ships, bosses, islands)
+        renderer.drawCloudLayer(this.scrollY);
 
         // HUD
         this._renderHUD(renderer);
