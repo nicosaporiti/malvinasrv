@@ -1,4 +1,4 @@
-const CACHE_NAME = 'malvinas-srv-v7';
+const CACHE_NAME = 'malvinas-srv-v8';
 
 const PRECACHE_URLS = [
     './',

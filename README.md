@@ -135,6 +135,7 @@ malvinasrv/
 ├── README.md
 ├── sw.js                      # Service worker: offline + cache de assets
 ├── tools/
+│   ├── og_image.py            # Genera assets/og-image.png (Pillow + numpy)
 │   ├── pixelart.py            # Helpers de dibujo pixel-art compartidos
 │   └── title_video.py         # Genera title_video.mp4 y title_poster.png (Pillow + numpy + ffmpeg)
 ├── assets/
@@ -154,6 +155,7 @@ malvinasrv/
 │   ├── bomb.png               # Sprite bomba (arma especial Skyhawk)
 │   ├── afterburner.png        # Sprite llamas postcombustion (Mirage)
 │   ├── title_poster.png       # Primer frame del video, se muestra mientras carga
+│   ├── og-image.png           # Imagen de vista previa al compartir el link (Open Graph)
 │   ├── title_video.mp4        # Cinematica pixel-art de portada a pantalla completa (loop 12s, generada)
 │   ├── explosion_0..4.png     # Animacion de explosion (5 frames)
 │   ├── stage_1..5.png         # Arte a pantalla completa del briefing de cada etapa (256x384)

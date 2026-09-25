@@ -5,7 +5,10 @@
 }
 
 body {
-    background: #111;
+    /* Pixelated, dimmed title frame behind the game fills wide screens
+       (and link-preview screenshots) instead of flat black. */
+    background: #111 url('assets/title_poster.png') center / cover no-repeat;
+    image-rendering: pixelated;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -18,10 +21,28 @@ body {
     touch-action: none;
 }
 
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+}
+
 #game {
+    position: relative;
+    z-index: 1;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
     aspect-ratio: 2 / 3;
+    /* Fallback when the browser reports neither a fine nor a coarse pointer
+       (e.g. headless screenshot services): fit the viewport height. */
+    height: min(768px, 100vh);
+    height: min(768px, 100dvh);
+    width: auto;
+}
+
+#touch-controls {
+    display: none;
 }
 
 /* --- Desktop --- */
