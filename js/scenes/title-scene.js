@@ -1,6 +1,6 @@
 import { WIDTH, HEIGHT } from '../engine/renderer.js';
 import { Audio } from '../engine/audio.js';
-import { getImage } from '../engine/assets.js';
+import { getImage, getVideo } from '../engine/assets.js';
 
 export class TitleScene {
     constructor() {
@@ -11,11 +11,20 @@ export class TitleScene {
     enter() {
         this.age = 0;
         this.scrollY = 0;
+        this.playRequested = false;
     }
 
     update(dt, input) {
         this.age += dt;
         this.scrollY += 30 * dt;
+
+        // The video may finish loading after the scene is entered.
+        const video = getVideo('title_video');
+        if (video && !this.playRequested) {
+            this.playRequested = true;
+            video.currentTime = 0;
+            video.play().catch(() => {});
+        }
 
         if (input.enter() || input.shoot()) {
             Audio.confirm();
@@ -35,11 +44,15 @@ export class TitleScene {
         // Subtitle
         renderer.drawTextCentered('Soberania, Resistencia, Victoria', 90, '#6699aa', 1);
 
-        // Title art
-        const img = getImage('title_art');
-        if (img) {
-            renderer.drawImage(img, 0, 110, 256, 142);
+        // Title cinematic, with the static art until the video has frames
+        const video = getVideo('title_video');
+        if (video && !video.paused && video.readyState >= 2) {
+            renderer.drawImage(video, 0, 110, 256, 142);
+        } else {
+            renderer.drawImage(getImage('title_art'), 0, 110, 256, 142);
         }
+        renderer.drawRect(0, 109, 256, 1, '#88bbdd');
+        renderer.drawRect(0, 252, 256, 1, '#88bbdd');
 
         // Blinking prompt
         if (Math.floor(this.age * 2) % 2 === 0) {
@@ -54,5 +67,8 @@ export class TitleScene {
         renderer.drawText(soundTxt, 4, HEIGHT - 12, '#445566');
     }
 
-    exit() {}
+    exit() {
+        const video = getVideo('title_video');
+        if (video) video.pause();
+    }
 }

@@ -134,6 +134,8 @@ malvinasrv/
 ├── style.css                  # Layout responsive (desktop + mobile)
 ├── README.md
 ├── sw.js                      # Service worker: offline + cache de assets
+├── tools/
+│   └── title_video.py         # Genera assets/title_video.mp4 (Pillow + numpy + ffmpeg)
 ├── assets/
 │   ├── icons/
 │   │   ├── icon-192.png       # Icono PWA 192x192
@@ -150,7 +152,8 @@ malvinasrv/
 │   ├── missile.png            # Sprite misil (arma especial Dagger)
 │   ├── bomb.png               # Sprite bomba (arma especial Skyhawk)
 │   ├── afterburner.png        # Sprite llamas postcombustion (Mirage)
-│   ├── title_art.png          # Arte de portada
+│   ├── title_art.png          # Arte de portada (fallback mientras carga el video)
+│   ├── title_video.mp4        # Cinematica pixel-art de portada (loop 12s, generada)
 │   ├── explosion_0..4.png     # Animacion de explosion (5 frames)
 │   ├── music_title.mp3        # Musica titulo
 │   ├── music_stage.mp3        # Musica gameplay
@@ -165,7 +168,7 @@ malvinasrv/
 │   │   ├── renderer.js        # Canvas offscreen 256x384, escalado pixelado
 │   │   ├── collision.js       # Deteccion AABB
 │   │   ├── audio.js           # Sistema de musica MP3 + SFX procedurales
-│   │   └── assets.js          # Precarga de sprites PNG
+│   │   └── assets.js          # Precarga de sprites PNG + video de portada
 │   ├── entities/
 │   │   ├── entity.js          # Clase base (x, y, w, h, hp, vx, vy)
 │   │   ├── player.js          # Jugador (movimiento, disparo, especial, muerte, respawn)
