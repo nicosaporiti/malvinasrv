@@ -153,7 +153,6 @@ malvinasrv/
 │   ├── missile.png            # Sprite misil (arma especial Dagger)
 │   ├── bomb.png               # Sprite bomba (arma especial Skyhawk)
 │   ├── afterburner.png        # Sprite llamas postcombustion (Mirage)
-│   ├── title_art.png          # Arte de portada original (sin uso)
 │   ├── title_poster.png       # Primer frame del video, se muestra mientras carga
 │   ├── title_video.mp4        # Cinematica pixel-art de portada a pantalla completa (loop 12s, generada)
 │   ├── explosion_0..4.png     # Animacion de explosion (5 frames)
