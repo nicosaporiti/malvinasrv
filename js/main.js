@@ -96,12 +96,11 @@ renderer.clear('#0a2a4a');
 renderer.drawTextCentered('CARGANDO...', 190, '#88bbdd', 1);
 renderer.flush();
 
-Promise.all([loadAllAssets(), preloadMusic()]).then(() => {
-    switchScene('title');
-    const loop = new GameLoop(update, render);
-    loop.start();
-}).catch(err => {
+// Prepare title music immediately; native playback buffers only what it needs.
+preloadMusic();
+loadAllAssets().catch(err => {
     console.error('Error loading assets:', err);
+}).then(() => {
     switchScene('title');
     const loop = new GameLoop(update, render);
     loop.start();

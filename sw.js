@@ -1,5 +1,7 @@
-const CACHE_NAME = 'malvinas-srv-v8';
+const CACHE_NAME = 'malvinas-srv-v11';
 
+// Precache only the game shell and sprites. Stage art is cached on demand;
+// native audio/video buffering must not compete with a duplicate precache.
 const PRECACHE_URLS = [
     './',
     'index.html',
@@ -47,19 +49,8 @@ const PRECACHE_URLS = [
     'assets/explosion_4.png',
     'assets/mirage.png',
     'assets/missile.png',
-    'assets/music_boss.mp3',
-    'assets/music_gameover.mp3',
-    'assets/music_stage.mp3',
-    'assets/music_title.mp3',
-    'assets/music_victory.mp3',
     'assets/skyhawk.png',
-    'assets/stage_1.png',
-    'assets/stage_2.png',
-    'assets/stage_3.png',
-    'assets/stage_4.png',
-    'assets/stage_5.png',
     'assets/title_poster.png',
-    'assets/title_video.mp4',
     'assets/turret_damaged.png',
     'assets/turret_destroyed.png',
     'assets/turret_fire1.png',
@@ -88,40 +79,47 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
+const NETWORK_WAIT_MS = 3000;
+
+async function preferNetwork(network, cacheKey) {
+    const cached = await caches.match(cacheKey);
+    if (!cached) return network;
+
+    let timeout;
+    try {
+        // A stalled mobile connection must not hide an available offline copy.
+        return await Promise.race([
+            network.catch(() => cached),
+            new Promise((resolve) => {
+                timeout = setTimeout(() => resolve(cached), NETWORK_WAIT_MS);
+            }),
+        ]);
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
 self.addEventListener('fetch', (event) => {
     const { request } = event;
-
     if (request.method !== 'GET') return;
 
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
 
-    // Network-first must bypass the browser's HTTP cache too: without this a
-    // heuristically cached module can mask a new deploy. `no-cache` still
-    // revalidates cheaply (304) and the SW cache remains the offline fallback.
-    if (request.mode === 'navigate') {
-        event.respondWith(
-            fetch(request, { cache: 'no-cache' })
-                .then((networkResponse) => {
-                    const responseClone = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put('index.html', responseClone));
-                    return networkResponse;
-                })
-                .catch(() => caches.match('index.html'))
-        );
-        return;
-    }
+    // Let the browser handle byte ranges without buffering a whole media file.
+    // In particular, never answer Safari's range probe with a cached full body.
+    if (request.headers.has('range')) return;
 
-    event.respondWith(
-        fetch(request, { cache: 'no-cache' })
-            .then((networkResponse) => {
-                if (networkResponse && networkResponse.status === 200) {
-                    const responseClone = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
-                }
-
-                return networkResponse;
-            })
-            .catch(() => caches.match(request))
-    );
+    const cacheKey = request.mode === 'navigate' ? 'index.html' : request;
+    // Revalidate the HTTP cache so a new deploy is not hidden by stale modules.
+    const network = fetch(request, { cache: 'no-cache' });
+    // Keep refreshing even when the response deadline serves the cached copy.
+    event.waitUntil(network.then(async (response) => {
+        if (response.status === 200) {
+            const clone = response.clone();
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(cacheKey, clone);
+        }
+    }).catch(() => {}));
+    event.respondWith(preferNetwork(network, cacheKey));
 });

@@ -20,34 +20,25 @@ export function getImage(key) {
     return cache[key] || null;
 }
 
-// Videos are fetched whole and played from a blob URL: this avoids HTTP Range
-// requests, so the service worker can cache them and they play offline.
-// The element stays in the DOM (invisible) because some mobile browsers only
-// decode frames of attached videos.
+// Let the browser stream and buffer the video; a blob would require the entire
+// download before the first frame. Expose it immediately so a gesture can play
+// it even when iOS delays loadeddata until playback begins.
 export function loadVideo(key, src) {
-    if (cache[key]) return Promise.resolve(cache[key]);
-    return fetch(src)
-        .then((res) => {
-            if (!res.ok) throw new Error(`Failed to load: ${src}`);
-            return res.blob();
-        })
-        .then((blob) => new Promise((resolve, reject) => {
-            const video = document.createElement('video');
-            video.muted = true;
-            video.loop = true;
-            video.playsInline = true;
-            video.setAttribute('muted', '');
-            video.setAttribute('playsinline', '');
-            video.preload = 'auto';
-            video.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
-            video.onloadeddata = () => {
-                cache[key] = video;
-                resolve(video);
-            };
-            video.onerror = () => reject(new Error(`Failed to decode: ${src}`));
-            video.src = URL.createObjectURL(blob);
-            document.body.appendChild(video);
-        }));
+    if (cache[key]) return cache[key];
+    const video = document.createElement('video');
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.preload = 'auto';
+    video.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+    video.onerror = () => console.warn(`Failed to load video: ${src}`);
+    video.src = src;
+    document.body.appendChild(video);
+    cache[key] = video;
+    video.load();
+    return video;
 }
 
 export function getVideo(key) {
@@ -55,6 +46,8 @@ export function getVideo(key) {
 }
 
 export async function loadAllAssets() {
+    // Start the title media before sprites and optional stage illustrations.
+    loadVideo('title_video', 'assets/title_video.mp4');
     await Promise.all([
         loadImage('skyhawk', 'assets/skyhawk.png'),
         loadImage('mirage', 'assets/mirage.png'),
@@ -81,15 +74,13 @@ export async function loadAllAssets() {
         loadImage('explosion_2', 'assets/explosion_2.png'),
         loadImage('explosion_3', 'assets/explosion_3.png'),
         loadImage('explosion_4', 'assets/explosion_4.png'),
-        loadImage('stage_1', 'assets/stage_1.png'),
-        loadImage('stage_2', 'assets/stage_2.png'),
-        loadImage('stage_3', 'assets/stage_3.png'),
-        loadImage('stage_4', 'assets/stage_4.png'),
-        loadImage('stage_5', 'assets/stage_5.png'),
     ]);
 
-    // Not awaited: the title shows title_poster until the video is ready.
-    loadVideo('title_video', 'assets/title_video.mp4').catch((err) => {
-        console.warn(err.message);
-    });
+    // Not awaited: briefing art is only needed once a stage starts, and the
+    // briefing falls back to the ocean until it arrives.
+    for (let i = 1; i <= 5; i++) {
+        loadImage(`stage_${i}`, `assets/stage_${i}.png`).catch((err) => {
+            console.warn(err.message);
+        });
+    }
 }

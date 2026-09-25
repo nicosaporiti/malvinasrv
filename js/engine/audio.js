@@ -12,20 +12,19 @@ function getCtx() {
 
 // Browsers keep an AudioContext suspended until a user gesture. Resume it
 // (and play a silent buffer, which older iOS needs) on the first gesture of
-// any kind; music already started on the suspended context then plays.
+// any kind. Native music playback is unlocked in the same gesture.
 const UNLOCK_EVENTS = ['keydown', 'pointerdown', 'pointerup', 'touchend', 'click'];
 
 function unlock() {
+    // This call must stay synchronous with the gesture on iOS.
+    startMusic();
     const ctx = getCtx();
+    if (ctx.state === 'running') return;
     const silent = ctx.createBufferSource();
     silent.buffer = ctx.createBuffer(1, 1, 22050);
     silent.connect(ctx.destination);
     silent.start(0);
-    ctx.resume().then(() => {
-        if (ctx.state === 'running') {
-            UNLOCK_EVENTS.forEach((ev) => window.removeEventListener(ev, unlock, true));
-        }
-    }).catch(() => {});
+    ctx.resume().catch(() => {});
 }
 
 export function installAudioUnlock() {
@@ -100,87 +99,69 @@ function playNoise(duration, volume = 0.1, startCutoff = 20000, endCutoff = 2000
 let muted = false;
 
 // --- Music system ---
-const musicCache = {};
-let currentMusic = null;
+let musicElement = null;
 let currentMusicKey = null;
-let musicGain = null;
 const MUSIC_VOLUME = 0.35;
+const MUSIC_SRC = {
+    title: 'assets/music_title.mp3',
+    stage: 'assets/music_stage.mp3',
+    boss: 'assets/music_boss.mp3',
+    gameover: 'assets/music_gameover.mp3',
+    victory: 'assets/music_victory.mp3',
+};
 
-const musicRawBuffers = {};
-
-async function fetchMusic(key, src) {
-    if (musicRawBuffers[key]) return;
-    const resp = await fetch(src);
-    musicRawBuffers[key] = await resp.arrayBuffer();
-}
-
-async function decodeMusic(key) {
-    if (musicCache[key] || !musicRawBuffers[key]) return;
-    const ctx = getCtx();
-    musicCache[key] = await ctx.decodeAudioData(musicRawBuffers[key]);
-    delete musicRawBuffers[key];
-}
-
-export async function preloadMusic() {
-    await Promise.all([
-        fetchMusic('title', 'assets/music_title.mp3'),
-        fetchMusic('stage', 'assets/music_stage.mp3'),
-        fetchMusic('boss', 'assets/music_boss.mp3'),
-        fetchMusic('gameover', 'assets/music_gameover.mp3'),
-        fetchMusic('victory', 'assets/music_victory.mp3'),
-    ]);
-}
-
-let musicRequestId = 0;
-
-async function _playMusic(key, loop = true) {
-    if (currentMusicKey === key) return;
-    _stopMusic();
-
-    const requestId = ++musicRequestId;
-
-    // Decode on first use (after user interaction, so AudioContext is allowed)
-    if (!musicCache[key] && musicRawBuffers[key]) {
-        await decodeMusic(key);
+function getMusicElement() {
+    if (!musicElement) {
+        musicElement = document.createElement('audio');
+        musicElement.preload = 'auto';
+        musicElement.volume = MUSIC_VOLUME;
+        document.body.appendChild(musicElement);
     }
+    return musicElement;
+}
 
-    // Stale request check — another playMusic() call happened during decode
-    if (requestId !== musicRequestId) return;
+// Reuse the same element across tracks to preserve iOS gesture authorization.
+// Native media playback can start before the complete MP3 has downloaded.
+function startMusic() {
+    if (!currentMusicKey || !musicElement.paused || musicElement.ended) return;
+    musicElement.play().catch((err) => {
+        if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+            console.warn('Music playback failed:', err);
+        }
+    });
+}
 
-    const buf = musicCache[key];
-    if (!buf) return;
+export function preloadMusic() {
+    const music = getMusicElement();
+    if (!music.getAttribute('src')) {
+        music.src = MUSIC_SRC.title;
+        music.load();
+    }
+}
 
-    const ctx = getCtx();
-    const source = ctx.createBufferSource();
-    source.buffer = buf;
-    source.loop = loop;
-
-    musicGain = ctx.createGain();
-    musicGain.gain.setValueAtTime(muted ? 0 : MUSIC_VOLUME, ctx.currentTime);
-
-    source.connect(musicGain);
-    musicGain.connect(ctx.destination);
-    source.start(0);
-
-    currentMusic = source;
+function _playMusic(key, loop = true) {
+    const src = MUSIC_SRC[key];
+    if (!src) return;
+    const music = getMusicElement();
+    if (currentMusicKey === key) return;
+    music.pause();
+    music.loop = loop;
+    if (music.getAttribute('src') !== src) music.src = src;
+    else music.currentTime = 0;
+    music.muted = muted;
     currentMusicKey = key;
+    startMusic();
 }
 
 function _stopMusic() {
-    if (currentMusic) {
-        try { currentMusic.stop(); } catch (e) { /* already stopped */ }
-        currentMusic = null;
-        currentMusicKey = null;
-        musicGain = null;
-    }
+    if (musicElement) musicElement.pause();
+    currentMusicKey = null;
 }
 
 export const Audio = {
     toggle() {
         muted = !muted;
-        if (musicGain) {
-            musicGain.gain.setValueAtTime(muted ? 0 : MUSIC_VOLUME, getCtx().currentTime);
-        }
+        if (musicElement) musicElement.muted = muted;
         return !muted;
     },
 

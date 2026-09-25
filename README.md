@@ -30,10 +30,18 @@ El juego ahora puede instalarse como **Progressive Web App** en navegadores comp
 
 ### Offline y actualizaciones
 
-- La PWA precachea `index.html`, `style.css`, `manifest.webmanifest`, todos los modulos de `js/` y todos los `assets/`
-- El `service worker` usa estrategia **network-first** para HTML, JS, sprites y audio
-- Si hay conexion, descarga la version nueva y actualiza la cache automaticamente
-- Si no hay conexion, responde con la version cacheada para que el juego siga abriendo offline
+- La PWA precachea HTML, CSS, manifiesto, modulos JavaScript, sprites e iconos necesarios para arrancar.
+- El video y la musica de portada empiezan a prepararse al arrancar. Se reproducen mediante elementos multimedia nativos, sin esperar a descargar archivos completos. El primer toque habilita el sonido y reintenta el video si Safari bloqueo el autoplay.
+- Las ilustraciones de etapas se descargan en segundo plano; no bloquean la pantalla de carga.
+- El service worker prioriza la red, pero usa la copia guardada tras 3 segundos si la conexion queda pendiente. La respuesta tardia sigue actualizando la cache.
+- Sin conexion se utiliza la cache para el juego y las imagenes. Las peticiones parciales de audio/video (HTTP Range) las gestiona el navegador; su disponibilidad offline depende de su cache multimedia.
+
+### Pruebas de carga
+
+Con Node.js 24, ejecutar `node --experimental-vm-modules --test tests/*.test.mjs`.
+Las pruebas usan recursos sinteticos y cubren descargas pendientes, red rapida, modo offline, reproduccion nativa, cambios de pista y reintentos por gesto tras bloquearse el autoplay.
+
+Validacion local (2026-09-25): 11 pruebas aprobadas. Chromium (perfil Pixel 7) y WebKit (perfil iPhone 13), con audio/video limitados a bloques de 16 KiB cada 50 ms, reprodujeron portada y sonido, entraron a la partida mediante toques y repitieron la portada con la PWA activa sin errores JavaScript. La musica de partida avanzo tras unos 0,64 s y 0,65 s respectivamente, sin descargar el MP3 completo. Son mediciones de una prueba local, no garantias de tiempo en una red real; falta comprobar un iPhone fisico.
 
 ## Controles
 
@@ -116,7 +124,7 @@ Efectos de sonido procedurales 8-bit generados con Web Audio API (disparo, explo
 - **Vanilla JavaScript + HTML5 Canvas** — sin frameworks, sin bundler
 - **ES Modules nativos** (`<script type="module">`)
 - Resolucion interna **256x384** escalada con CSS pixelado
-- **Web Audio API** para musica (MP3) y efectos procedurales 8-bit
+- **HTMLMediaElement** para musica MP3 progresiva y **Web Audio API** para efectos procedurales 8-bit
 - Sprites PNG con animaciones (explosiones de 5 frames)
 - Object pooling para proyectiles (200) y explosiones (50)
 - Fixed timestep a 60fps con acumulador de delta

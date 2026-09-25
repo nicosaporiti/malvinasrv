@@ -14,19 +14,26 @@ export class TitleScene {
         this.playRequested = false;
         this.inputArmed = false;
         this.isTouch = false;
+        this.retryVideo = () => this.playVideo();
+        for (const event of ['pointerup', 'touchend', 'keydown', 'click']) {
+            window.addEventListener(event, this.retryVideo, true);
+        }
+        this.playVideo();
+    }
+
+    playVideo() {
+        const video = getVideo('title_video');
+        if (!video || !video.paused || this.playRequested) return;
+        this.playRequested = true;
+        // Retry only on a new gesture, not on every animation frame.
+        video.play().catch(() => {}).finally(() => {
+            this.playRequested = false;
+        });
     }
 
     update(dt, input) {
         this.age += dt;
         this.scrollY += 30 * dt;
-
-        // The video may finish loading after the scene is entered.
-        const video = getVideo('title_video');
-        if (video && !this.playRequested) {
-            this.playRequested = true;
-            video.currentTime = 0;
-            video.play().catch(() => {});
-        }
 
         this.isTouch = input.isTouch();
 
@@ -106,6 +113,9 @@ export class TitleScene {
     }
 
     exit() {
+        for (const event of ['pointerup', 'touchend', 'keydown', 'click']) {
+            window.removeEventListener(event, this.retryVideo, true);
+        }
         const video = getVideo('title_video');
         if (video) video.pause();
     }
