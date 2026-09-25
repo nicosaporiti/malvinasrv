@@ -12,6 +12,8 @@ export class TitleScene {
         this.age = 0;
         this.scrollY = 0;
         this.playRequested = false;
+        this.inputArmed = false;
+        this.isTouch = false;
     }
 
     update(dt, input) {
@@ -24,6 +26,20 @@ export class TitleScene {
             this.playRequested = true;
             video.currentTime = 0;
             video.play().catch(() => {});
+        }
+
+        this.isTouch = input.isTouch();
+
+        // While audio is locked the first gesture only unlocks it (starting
+        // the title music) instead of leaving the title. Input is then armed
+        // once the keys are released, so that same press doesn't skip ahead.
+        if (!Audio.isUnlocked()) {
+            this.inputArmed = false;
+            return null;
+        }
+        if (!this.inputArmed) {
+            this.inputArmed = !input.enter() && !input.shoot();
+            return null;
         }
 
         if (input.enter() || input.shoot()) {
@@ -56,7 +72,11 @@ export class TitleScene {
 
         // Blinking prompt
         if (Math.floor(this.age * 2) % 2 === 0) {
-            renderer.drawTextCentered('PRESIONA ENTER', 280, '#aaa', 1);
+            let prompt = 'PRESIONA ENTER';
+            if (!Audio.isUnlocked()) {
+                prompt = this.isTouch ? 'TOCA LA PANTALLA' : 'PRESIONA UNA TECLA';
+            }
+            renderer.drawTextCentered(prompt, 280, '#aaa', 1);
         }
 
         // Credits

@@ -190,4 +190,5 @@ export class Input {
     shoot() { return this.isDown('Space') || this.isDown('KeyZ') || this.justPressed('Space') || this.justPressed('KeyZ') || this._touchFire; }
     bomb()  { return this.justPressed('KeyX') || this._bombConsumed; }
     enter() { return this.justPressed('Enter') || this._enterConsumed; }
+    isTouch() { return this._isMobile; }
 }

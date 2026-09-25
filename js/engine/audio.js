@@ -10,6 +10,28 @@ function getCtx() {
     return audioCtx;
 }
 
+// Browsers keep an AudioContext suspended until a user gesture. Resume it
+// (and play a silent buffer, which older iOS needs) on the first gesture of
+// any kind; music already started on the suspended context then plays.
+const UNLOCK_EVENTS = ['keydown', 'pointerdown', 'pointerup', 'touchend', 'click'];
+
+function unlock() {
+    const ctx = getCtx();
+    const silent = ctx.createBufferSource();
+    silent.buffer = ctx.createBuffer(1, 1, 22050);
+    silent.connect(ctx.destination);
+    silent.start(0);
+    ctx.resume().then(() => {
+        if (ctx.state === 'running') {
+            UNLOCK_EVENTS.forEach((ev) => window.removeEventListener(ev, unlock, true));
+        }
+    }).catch(() => {});
+}
+
+export function installAudioUnlock() {
+    UNLOCK_EVENTS.forEach((ev) => window.addEventListener(ev, unlock, true));
+}
+
 function playTone(freq, duration, type = 'square', volume = 0.15) {
     const ctx = getCtx();
     const osc = ctx.createOscillator();
@@ -164,6 +186,10 @@ export const Audio = {
 
     isMuted() {
         return muted;
+    },
+
+    isUnlocked() {
+        return audioCtx !== null && audioCtx.state === 'running';
     },
 
     playMusic(key, loop = true) {

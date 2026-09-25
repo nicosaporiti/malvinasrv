@@ -1,7 +1,7 @@
 import { GameLoop } from './engine/game-loop.js';
 import { Input } from './engine/input.js';
 import { Renderer } from './engine/renderer.js';
-import { Audio, preloadMusic } from './engine/audio.js';
+import { Audio, preloadMusic, installAudioUnlock } from './engine/audio.js';
 import { loadAllAssets } from './engine/assets.js';
 import { TitleScene } from './scenes/title-scene.js';
 import { SelectScene } from './scenes/select-scene.js';
@@ -15,6 +15,8 @@ if ('serviceWorker' in navigator) {
         });
     });
 }
+
+installAudioUnlock();
 
 const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas);
