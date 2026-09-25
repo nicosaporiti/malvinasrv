@@ -75,7 +75,7 @@ export async function loadAllAssets() {
         loadImage('missile', 'assets/missile.png'),
         loadImage('bomb', 'assets/bomb.png'),
         loadImage('afterburner', 'assets/afterburner.png'),
-        loadImage('title_art', 'assets/title_art.png'),
+        loadImage('title_poster', 'assets/title_poster.png'),
         loadImage('explosion_0', 'assets/explosion_0.png'),
         loadImage('explosion_1', 'assets/explosion_1.png'),
         loadImage('explosion_2', 'assets/explosion_2.png'),
@@ -88,7 +88,7 @@ export async function loadAllAssets() {
         loadImage('stage_5', 'assets/stage_5.png'),
     ]);
 
-    // Not awaited: the title falls back to title_art until the video is ready.
+    // Not awaited: the title shows title_poster until the video is ready.
     loadVideo('title_video', 'assets/title_video.mp4').catch((err) => {
         console.warn(err.message);
     });

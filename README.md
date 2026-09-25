@@ -136,7 +136,7 @@ malvinasrv/
 ├── sw.js                      # Service worker: offline + cache de assets
 ├── tools/
 │   ├── pixelart.py            # Helpers de dibujo pixel-art compartidos
-│   └── title_video.py         # Genera assets/title_video.mp4 (Pillow + numpy + ffmpeg)
+│   └── title_video.py         # Genera title_video.mp4 y title_poster.png (Pillow + numpy + ffmpeg)
 ├── assets/
 │   ├── icons/
 │   │   ├── icon-192.png       # Icono PWA 192x192
@@ -153,8 +153,9 @@ malvinasrv/
 │   ├── missile.png            # Sprite misil (arma especial Dagger)
 │   ├── bomb.png               # Sprite bomba (arma especial Skyhawk)
 │   ├── afterburner.png        # Sprite llamas postcombustion (Mirage)
-│   ├── title_art.png          # Arte de portada (fallback mientras carga el video)
-│   ├── title_video.mp4        # Cinematica pixel-art de portada (loop 12s, generada)
+│   ├── title_art.png          # Arte de portada original (sin uso)
+│   ├── title_poster.png       # Primer frame del video, se muestra mientras carga
+│   ├── title_video.mp4        # Cinematica pixel-art de portada a pantalla completa (loop 12s, generada)
 │   ├── explosion_0..4.png     # Animacion de explosion (5 frames)
 │   ├── stage_1..5.png         # Arte a pantalla completa del briefing de cada etapa (256x384)
 │   ├── music_title.mp3        # Musica titulo

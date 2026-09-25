@@ -1,4 +1,4 @@
-const CACHE_NAME = 'malvinas-srv-v6';
+const CACHE_NAME = 'malvinas-srv-v7';
 
 const PRECACHE_URLS = [
     './',
@@ -58,7 +58,7 @@ const PRECACHE_URLS = [
     'assets/stage_3.png',
     'assets/stage_4.png',
     'assets/stage_5.png',
-    'assets/title_art.png',
+    'assets/title_poster.png',
     'assets/title_video.mp4',
     'assets/turret_damaged.png',
     'assets/turret_destroyed.png',

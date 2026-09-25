@@ -50,25 +50,43 @@ export class TitleScene {
     }
 
     render(renderer) {
-        renderer.drawOceanBackground(this.scrollY);
+        // Full-screen title cinematic, with its first frame until it plays
+        const video = getVideo('title_video');
+        const poster = getImage('title_poster');
+        if (video && !video.paused && video.readyState >= 2) {
+            renderer.drawImage(video, 0, 0, WIDTH, HEIGHT);
+        } else if (poster) {
+            renderer.drawImage(poster, 0, 0, WIDTH, HEIGHT);
+        } else {
+            renderer.drawOceanBackground(this.scrollY);
+        }
+
+        // Darken the top and bottom so the text reads over the video
+        const ctx = renderer.offCtx;
+        const top = ctx.createLinearGradient(0, 0, 0, 120);
+        top.addColorStop(0, 'rgba(0,0,0,0.6)');
+        top.addColorStop(0.7, 'rgba(0,0,0,0.3)');
+        top.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = top;
+        ctx.fillRect(0, 0, WIDTH, 120);
+        const bottom = ctx.createLinearGradient(0, 290, 0, HEIGHT);
+        bottom.addColorStop(0, 'rgba(0,0,0,0)');
+        bottom.addColorStop(1, 'rgba(0,0,0,0.7)');
+        ctx.fillStyle = bottom;
+        ctx.fillRect(0, 290, WIDTH, HEIGHT - 290);
+
+        const text = (str, y, color, size = 1) => {
+            renderer.drawTextCentered(str, y + 1, 'rgba(0,0,0,0.85)', size);
+            renderer.drawTextCentered(str, y, color, size);
+        };
 
         // Title
         const titleY = 30 + Math.sin(this.age * 2) * 3;
-        renderer.drawTextCentered('MALVINAS', titleY, '#fff', 3);
-        renderer.drawTextCentered('S.R.V.', titleY + 28, '#88bbdd', 2);
+        text('MALVINAS', titleY, '#fff', 3);
+        text('S.R.V.', titleY + 28, '#88bbdd', 2);
 
         // Subtitle
-        renderer.drawTextCentered('Soberania, Resistencia, Victoria', 90, '#6699aa', 1);
-
-        // Title cinematic, with the static art until the video has frames
-        const video = getVideo('title_video');
-        if (video && !video.paused && video.readyState >= 2) {
-            renderer.drawImage(video, 0, 110, 256, 142);
-        } else {
-            renderer.drawImage(getImage('title_art'), 0, 110, 256, 142);
-        }
-        renderer.drawRect(0, 109, 256, 1, '#88bbdd');
-        renderer.drawRect(0, 252, 256, 1, '#88bbdd');
+        text('Soberania, Resistencia, Victoria', 90, '#99bbcc');
 
         // Blinking prompt
         if (Math.floor(this.age * 2) % 2 === 0) {
@@ -76,15 +94,15 @@ export class TitleScene {
             if (!Audio.isUnlocked()) {
                 prompt = this.isTouch ? 'TOCA LA PANTALLA' : 'PRESIONA UNA TECLA';
             }
-            renderer.drawTextCentered(prompt, 280, '#aaa', 1);
+            text(prompt, 300, '#ddd');
         }
 
         // Credits
-        renderer.drawTextCentered('Inspirado en nuestros heroes', 340, '#556677', 1);
+        text('Inspirado en nuestros heroes', 346, '#8899aa');
 
         // Sound indicator
         const soundTxt = Audio.isMuted() ? 'M: SONIDO OFF' : 'M: SONIDO ON';
-        renderer.drawText(soundTxt, 4, HEIGHT - 12, '#445566');
+        renderer.drawText(soundTxt, 4, HEIGHT - 12, '#778899');
     }
 
     exit() {

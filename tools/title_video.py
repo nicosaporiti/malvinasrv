@@ -1,12 +1,15 @@
 """Render the title-screen cinematic (assets/title_video.mp4).
 
-Pixel-art loop at the game's native resolution (256x142), upscaled 2x with
-nearest-neighbour before encoding so the pixels survive compression.
+Full-screen pixel-art loop at the game's native resolution (256x384),
+upscaled 2x with nearest-neighbour before encoding so the pixels survive
+compression. The game overlays the title text, so the action stays in the
+middle of the frame. The first frame is also written to
+assets/title_poster.png, shown while the video loads.
 
 Shot A: side-view sunset over the South Atlantic, delta jets skimming the
         sea and striking a frigate on the horizon.
-Shot B: top-down pass using the in-game sprites (Mirage, Skyhawk, Dagger)
-        attacking ships and a Harrier.
+Shot B: top-down vertical pass, like gameplay, using the in-game sprites
+        (Mirage, Skyhawk, Dagger) attacking ships and a Harrier.
 Dithered diagonal wipes join the shots; the loop point is seamless.
 
 Requires Pillow, numpy and an ffmpeg with libx264 (set FFMPEG or have
@@ -27,8 +30,9 @@ from pixelart import (ASSETS, BAYER4, BAYER8, JET_ROWS, blit, build_cloud, dithe
                       upscale)
 
 OUT = os.path.join(ASSETS, 'title_video.mp4')
+POSTER = os.path.join(ASSETS, 'title_poster.png')
 
-W, H = 256, 142
+W, H = 256, 384
 FPS = 24
 DURATION = 12.0
 SCALE = 2
@@ -61,17 +65,19 @@ SHIP = pixel_map(SHIP_ROWS, {'#': '#1e1230', 'o': '#ffd070'})
 
 # ---------------------------------------------------------------- shot A
 
-SKY = dithered_bands(['#140f33', '#241646', '#3a1f5c', '#5e2a6c', '#8e3a6e',
-                      '#c24e66', '#e56a58', '#f2934a', '#ffc46a'], 92, W)
-SEA = dithered_bands(['#6a2f58', '#4a2450', '#321c46', '#22163a', '#161030'], H - 92, W)
-HORIZON = 92
-SUN_X, SUN_Y, SUN_R = 176, 86, 22
+HORIZON = 250
+SKY = dithered_bands(['#0c0a26', '#140f33', '#241646', '#3a1f5c', '#5e2a6c', '#8e3a6e',
+                      '#c24e66', '#e56a58', '#f2934a', '#ffc46a'], HORIZON, W)
+SEA = dithered_bands(['#6a2f58', '#4a2450', '#321c46', '#22163a', '#161030', '#100c26'],
+                     H - HORIZON, W)
+SUN_X, SUN_Y, SUN_R = 176, 242, 26
 
-STARS = [(int(hash1(i * 3) * W), int(hash1(i * 3 + 1) * 34), hash1(i * 3 + 2)) for i in range(26)]
+STARS = [(int(hash1(i * 3) * W), int(hash1(i * 3 + 1) * 140), hash1(i * 3 + 2)) for i in range(60)]
 CLOUDS_A = [  # (x0, y, length, speed, seed)
-    (20, 30, 70, 5, 1), (150, 20, 90, 4, 2), (230, 46, 60, 7, 3), (60, 58, 50, 9, 4), (300, 38, 80, 6, 5),
+    (200, 70, 60, 3, 7), (-40, 88, 80, 4, 8), (150, 108, 90, 4, 2), (20, 126, 70, 5, 1),
+    (300, 146, 80, 6, 5), (230, 164, 60, 7, 3), (60, 184, 50, 9, 4), (110, 206, 70, 8, 6),
 ]
-ISLANDS = [(-10, 40, 6), (22, 36, 9), (52, 30, 5), (78, 26, 7), (230, 30, 4)]
+ISLANDS = [(-10, 40, 8), (22, 36, 12), (52, 30, 7), (78, 26, 9), (230, 30, 6)]
 
 FRIGATE_HIT = 3.55
 
@@ -156,7 +162,7 @@ def shot_a(t):
             if age * 1.6 < k / 18:
                 continue
             sx = ship_x + 12 + math.sin(k * 2.1 + life * 3) * 3 - life * 16
-            sy = HORIZON - 4 - life * 38
+            sy = HORIZON - 4 - life * 60
             r = 1 + int(life * 4)
             rect(f, sx - r, sy - r, 2 * r, 2 * r, rgb('#2b1a33'), 0.75 * (1 - life))
         # Fire glow at the waterline.
@@ -175,24 +181,24 @@ def shot_a(t):
         rect(f, tail - flen, fy, flen, flame_scale, FLAME[fl])
         rect(f, tail - flen // 2, fy, flen // 2, flame_scale, FLAME[0])
 
-    for start, y0, speed in ((0.6, 64, 78), (0.9, 74, 74)):
+    for start, y0, speed in ((0.6, HORIZON - 74, 78), (0.9, HORIZON - 60, 74)):
         lt = t - start
         if lt > 0:
             x = -40 + speed * lt
-            y = y0 + math.sin(lt * 2.5 + y0) * 1.5
+            y = y0 + lt * 9 + math.sin(lt * 2.5 + y0) * 1.5
             if x < W + 10:
                 jet(JET, x, y, 1)
 
     lt = t - 1.8
     if lt > 0:
         x = -90 + 160 * lt
-        y = 104 + math.sin(lt * 3) * 2
+        y = HORIZON + 12 + math.sin(lt * 3) * 2
         if x < W + 20:
             # Spray streak on the water below the close jet.
             for k in range(26):
                 sx = x + 10 - k * 3
                 if hash1(k + int(t * 20)) < 0.7:
-                    px(f, sx, H - 12 + (k % 3), rgb('#ffd8a8'), 0.8 - k / 40)
+                    px(f, sx, y + 27 + (k % 3), rgb('#ffd8a8'), 0.8 - k / 40)
             jet(JET2, x, y, 2)
 
     # Flash on impact.
@@ -205,136 +211,160 @@ def shot_a(t):
 
 WATER = [rgb('#0a2a4a'), rgb('#0c3056'), rgb('#0e365f')]
 CREST_DIM, CREST_HI, FOAM = rgb('#1d4d79'), rgb('#3a7ab0'), rgb('#d8f0ff')
-TEX_W = 512
+TEX_H = 768
 
 
 def build_water():
-    tex = np.zeros((H, TEX_W, 3), dtype=np.float32)
-    ys, xs = np.mgrid[0:H, 0:TEX_W]
-    n = (np.sin(xs * 0.05 + np.sin(ys * 0.11) * 2) + np.sin(ys * 0.07 + xs * 0.013) + 2) / 4
+    tex = np.zeros((TEX_H, W, 3), dtype=np.float32)
+    ys, xs = np.mgrid[0:TEX_H, 0:W]
+    a = ys * 2 * np.pi / TEX_H  # periodic in y so the scroll wraps seamlessly
+    n = (np.sin(a * 6 + np.sin(xs * 0.035) * 2.5) + np.sin(xs * 0.06 + a * 2) + 2) / 4
     idx = np.clip((n * 3 + BAYER4[ys % 4, xs % 4] - 0.5).astype(int), 0, 2)
     for i, c in enumerate(WATER):
         tex[idx == i] = c
     crests = []
-    for i in range(140):
-        crests.append((int(hash1(i * 5) * TEX_W), int(hash1(i * 5 + 1) * H),
+    for i in range(420):
+        crests.append((int(hash1(i * 5) * W), int(hash1(i * 5 + 1) * TEX_H),
                        3 + int(hash1(i * 5 + 2) * 7), hash1(i * 5 + 3) < 0.35))
     return tex, crests
 
 
 WATER_TEX, CRESTS = build_water()
-SCROLL_B = 70  # px/s, world moves left
+SCROLL_B = 70  # px/s, world moves down while the formation flies up
+SHIP_SPEED = 8  # ships steam up against the scroll
 
-PLANE_W, PLANE_H = 32, 40
-MIRAGE = load_sprite('mirage.png', PLANE_W, PLANE_H, rotate=-90)
-SKYHAWK = load_sprite('skyhawk.png', PLANE_W, PLANE_H, rotate=-90)
-DAGGER = load_sprite('dagger.png', PLANE_W, PLANE_H, rotate=-90)
-HARRIER = load_sprite('enemy_harrier.png', 30, 34, rotate=90)
-FRIGATE_TOP = load_sprite('enemy_ship.png', 20, 64, rotate=90)
-DESTROYER_TOP = load_sprite('boss_destroyer.png', 22, 110, rotate=90)
-MISSILE = load_sprite('missile.png', 6, 14, rotate=-90)
-BURNER = load_sprite('afterburner.png', 18, 16, rotate=-90)
+PLANE_W, PLANE_H = 40, 50
+MIRAGE = load_sprite('mirage.png', PLANE_W, PLANE_H)
+SKYHAWK = load_sprite('skyhawk.png', PLANE_W, PLANE_H)
+DAGGER = load_sprite('dagger.png', PLANE_W, PLANE_H)
+HARRIER = load_sprite('enemy_harrier.png', 30, 34)
+FRIGATE_TOP = load_sprite('enemy_ship.png', 20, 64)
+DESTROYER_TOP = load_sprite('boss_destroyer.png', 22, 110)
+MISSILE = load_sprite('missile.png', 6, 14)
+BURNER = load_sprite('afterburner.png', 18, 20)
 
 CLOUD = build_cloud([(22, 26, 14), (40, 18, 17), (60, 24, 15), (78, 30, 12), (34, 36, 12),
                      (56, 38, 13), (12, 34, 9)], (96, 54))
 
-# (sprite, x, y) formation, flying right.
-FORMATION = [(SKYHAWK, 58, 10), (MIRAGE, 96, 51), (DAGGER, 58, 92)]
+# (sprite, x, y) V formation flying up.
+FORMATION = [(MIRAGE, 108, 184), (SKYHAWK, 56, 226), (DAGGER, 160, 226)]
 
-SHIPS_B = [  # sprite, world x, y, hit time
-    (FRIGATE_TOP, 385, 28, 2.75),
-    (DESTROYER_TOP, 470, 90, 3.9),
+SHIPS_B = [  # sprite, x, screen y (top) at hit time, hit time
+    (FRIGATE_TOP, 56, 110, 2.75),
+    (DESTROYER_TOP, 168, 64, 3.9),
 ]
+DECOY = (FRIGATE_TOP, 206, 4.4)  # (sprite, x, time its top enters the screen)
 HARRIER_ENTER = 4.1
-HARRIER_HIT = 4.85
+HARRIER_HIT = 5.0
+# Clouds sweeping down: (x, time entering at the top, alpha).
+CLOUDS_B = [(150, 0.4, 0.85), (-20, 4.6, 0.9), (170, 5.4, 0.8)]
 
 
-def ship_b_x(wx, t):
-    return wx - SCROLL_B * t - 8 * t
+def ship_b_y(y_hit, hit, t):
+    return y_hit + (SCROLL_B - SHIP_SPEED) * (t - hit)
+
+
+def plane_pos(i, t):
+    _, x, y = FORMATION[i]
+    return x, y + math.sin(t * 2 + x) * 1.5
+
+
+def draw_ship(f, spr, x, y, t, hit=None):
+    sw, sh = spr.shape[1], spr.shape[0]
+    if y > H + 10 or y + sh < -70:
+        return
+    # Wake trailing behind the stern.
+    for k in range(34):
+        wyk = y + sh + k * 2
+        spread = k // 4
+        for side in (-1, 1):
+            if hash1(k * 3 + side + int(t * 10)) < 0.75:
+                px(f, x + sw // 2 + side * spread, wyk, FOAM, 0.7 - k / 50)
+    if hit is None or t < hit + 0.25:
+        blit(f, spr, x, y)
+        return
+    blit(f, spr, x, y, shade=0.38)
+    for k in range(6):
+        if int(t * 14 + k) % 2 == 0:
+            px(f, x + sw // 2 + (k % 2), y + 4 + k * (sh // 6), rgb('#ff8030'))
+    for k in range(10):
+        life = (t * 1.2 + k / 10) % 1.0
+        sy = y + sh * 0.5 + life * 30 + math.sin(k) * 4
+        r = 1 + int(life * 5)
+        rect(f, x + sw // 2 - r + life * 6, sy - r, 2 * r, 2 * r, rgb('#3a3a44'), 0.6 * (1 - life))
 
 
 def shot_b(t):
-    off = int(SCROLL_B * t) % TEX_W
-    f = np.concatenate([WATER_TEX[:, off:], WATER_TEX[:, :off]], axis=1)[:, :W].copy()
+    off = int(SCROLL_B * t) % TEX_H
+    f = WATER_TEX[(np.arange(H) - off) % TEX_H].copy()
     for cx, cy, ln, hi in CRESTS:
-        x = (cx - SCROLL_B * t * (1.0 if hi else 0.8)) % TEX_W
-        if x < W:
+        y = (cy + SCROLL_B * t * (1.0 if hi else 0.8)) % TEX_H
+        if y < H:
             col = CREST_HI if hi else CREST_DIM
-            rect(f, x, cy, ln, 1, col)
+            rect(f, cx, y, ln, 1, col)
             if hi and math.sin(t * 6 + cx) > 0.6:
-                px(f, x + ln // 2, cy, FOAM)
+                px(f, cx + ln // 2, y, FOAM)
 
-    # Ships with wakes; sunk ships leave burning wrecks.
-    for spr, wx, y, hit in SHIPS_B:
-        x = ship_b_x(wx, t)
+    # Ships steaming toward the formation; hit ships burn as they drift past.
+    for spr, x, y_hit, hit in SHIPS_B:
+        y = ship_b_y(y_hit, hit, t)
         sw, sh = spr.shape[1], spr.shape[0]
-        if x > W + 10 or x + sw < -60:
-            continue
-        for k in range(30):
-            wxk = x + sw + k * 2
-            spread = k // 4
-            for side in (-1, 1):
-                if hash1(k * 3 + side + int(t * 10)) < 0.75:
-                    px(f, wxk, y + sh // 2 + side * spread, FOAM, 0.7 - k / 45)
-        if t < hit + 0.25:
-            blit(f, spr, x, y)
-        else:
-            blit(f, spr, x, y, shade=0.38)
-            for k in range(6):
-                if int(t * 14 + k) % 2 == 0:
-                    px(f, x + 4 + k * (sw // 6), y + sh // 2 + (k % 2), rgb('#ff8030'))
-            for k in range(10):
-                life = (t * 1.2 + k / 10) % 1.0
-                sx = x + sw * 0.5 - life * 30 + math.sin(k) * 4
-                r = 1 + int(life * 5)
-                rect(f, sx - r, y + sh // 2 - r - life * 6, 2 * r, 2 * r, rgb('#3a3a44'), 0.6 * (1 - life))
+        draw_ship(f, spr, x, y, t, hit)
         draw_explosion(f, x + sw / 2, y + sh / 2, t - hit, 44, 0.7)
-        draw_explosion(f, x + sw * 0.25, y + sh / 2 + 4, t - hit - 0.2, 30, 0.6)
+        draw_explosion(f, x + sw / 2 + 4, y + sh * 0.7, t - hit - 0.2, 30, 0.6)
+    spr, x, enter = DECOY
+    draw_ship(f, spr, x, -spr.shape[0] + (SCROLL_B - SHIP_SPEED) * (t - enter), t)
 
-    # Missiles from the wingmen toward the ships.
-    launches = [(2.2, 0, SHIPS_B[0]), (3.3, 2, SHIPS_B[1]), (3.45, 1, SHIPS_B[1])]
-    for lt0, pi, (spr, wx, y, hit) in launches:
+    # Missiles from the formation toward the ships.
+    launches = [(2.2, 1, SHIPS_B[0]), (3.3, 2, SHIPS_B[1]), (3.45, 0, SHIPS_B[1])]
+    for lt0, pi, (spr, x, y_hit, hit) in launches:
         lt = t - lt0
         dur = hit - lt0
         if 0 <= lt < dur:
-            _, fx, fy = FORMATION[pi]
-            sx, sy = fx + PLANE_H, fy + PLANE_W / 2
-            tx = ship_b_x(wx, hit) + spr.shape[1] / 2
-            ty = y + spr.shape[0] / 2
+            px0, py0 = plane_pos(pi, lt0)
+            sx, sy = px0 + PLANE_W / 2, py0
+            tx = x + spr.shape[1] / 2
+            ty = y_hit + spr.shape[0] / 2
             p = lt / dur
             mx, my = sx + (tx - sx) * p, sy + (ty - sy) * p
-            blit(f, MISSILE, mx - 7, my - 3)
+            blit(f, MISSILE, mx - 3, my - 7)
             for k in range(1, 8):
-                px(f, mx - 7 - k * 2, my + math.sin(k + t * 30) * 0.8, rgb('#c8d8e8'), 0.7 - k * 0.08)
+                px(f, mx + math.sin(k + t * 30) * 0.8, my + 7 + k * 2, rgb('#c8d8e8'), 0.7 - k * 0.08)
 
-    # Harrier crossing right-to-left, downed by the lead's cannon.
+    # Harrier diving at the formation, downed by the lead's cannon.
     lt = t - HARRIER_ENTER
     if lt > 0:
-        hx = W + 10 - 150 * lt
-        hy = 60 - lt * 18
+        hx = 150 - lt * 36
+        hy = -40 + 150 * lt
         if t < HARRIER_HIT:
             blit(f, HARRIER, hx, hy)
         draw_explosion(f, hx + 15, hy + 17, t - HARRIER_HIT, 40, 0.6)
         if HARRIER_ENTER + 0.35 < t < HARRIER_HIT:
+            lx, ly = plane_pos(0, t)
+            gun_x, gun_y = lx + PLANE_W / 2, ly - 2
+            span = gun_y - (hy + 34)
             for k in range(4):
-                bx = 96 + PLANE_H + ((t * 400 + k * 30) % (hx - 96 - PLANE_H + 20))
-                rect(f, bx, 70 + (k % 2) * 2, 3, 1, rgb('#fff080'))
+                if span > 4:
+                    by = gun_y - ((t * 400 + k * 30) % span)
+                    bx = gun_x + (hx + 15 - gun_x) * (gun_y - by) / span
+                    rect(f, bx + (k % 2) * 2, by, 1, 3, rgb('#fff080'))
 
     # Formation: shadows first, then planes with afterburners.
-    for spr, x, y in FORMATION:
-        bob = math.sin(t * 2 + y) * 1.5
-        blit(f, spr, x + 10, y + bob + 16, alpha=0.35, tint=rgb('#021020'))
-    for spr, x, y in FORMATION:
-        bob = math.sin(t * 2 + y) * 1.5
+    for i, (spr, _, _) in enumerate(FORMATION):
+        x, y = plane_pos(i, t)
+        blit(f, spr, x + 12, y + 16, alpha=0.35, tint=rgb('#021020'))
+    for i, (spr, _, _) in enumerate(FORMATION):
+        x, y = plane_pos(i, t)
         flick = int(t * 24) % 2
-        blit(f, BURNER, x - 12 - flick * 2, y + bob + PLANE_W / 2 - 9)
-        blit(f, spr, x, y + bob)
+        blit(f, BURNER, x + PLANE_W / 2 - 9, y + PLANE_H - 7 + flick * 2)
+        blit(f, spr, x, y)
 
-    # A high cloud sweeping across for depth, with its shadow on the sea.
-    cx = W + 20 - (t - 4.6) * 200
-    if -CLOUD.shape[1] - 30 < cx < W + 30:
-        blit(f, CLOUD, cx + 24, 46, alpha=0.3, tint=rgb('#021020'))
-        blit(f, CLOUD, cx, 8, alpha=0.9)
+    # High clouds sweeping down for depth, with shadows on the sea.
+    for cx, enter, alpha in CLOUDS_B:
+        cy = -CLOUD.shape[0] + (t - enter) * 170
+        if -CLOUD.shape[0] - 30 < cy < H + 30:
+            blit(f, CLOUD, cx + 24, cy + 40, alpha=0.3, tint=rgb('#021020'))
+            blit(f, CLOUD, cx, cy, alpha=alpha)
 
     if 0 <= t - SHIPS_B[0][3] < 0.08 or 0 <= t - SHIPS_B[1][3] < 0.08:
         f = f * 0.6 + rgb('#ffffff') * 0.4
@@ -368,12 +398,14 @@ def main():
     ow, oh = W * SCALE, H * SCALE
     cmd = [ffmpeg_exe(), '-y', '-loglevel', 'error',
            '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{ow}x{oh}', '-r', str(FPS), '-i', '-',
-           '-an', '-c:v', 'libx264', '-preset', 'slow', '-tune', 'animation', '-crf', '20',
+           '-an', '-c:v', 'libx264', '-preset', 'slow', '-tune', 'animation', '-crf', '22',
            '-pix_fmt', 'yuv420p', '-profile:v', 'main', '-movflags', '+faststart', OUT]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     preview = '--preview' in sys.argv
     for i in range(n):
         f = np.clip(frame_at(i / FPS), 0, 255).astype(np.uint8)
+        if i == 0:
+            Image.fromarray(f).save(POSTER, optimize=True)
         big = f.repeat(SCALE, axis=0).repeat(SCALE, axis=1)
         proc.stdin.write(big.tobytes())
         if preview and i % 12 == 0:
