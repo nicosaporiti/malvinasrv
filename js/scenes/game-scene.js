@@ -10,6 +10,7 @@ import { spawnExplosion, getExplosionPool } from '../entities/explosion.js';
 import { PowerUp, randomPowerType } from '../entities/powerup.js';
 import { STAGES } from '../data/stages.js';
 import { getOcean } from '../engine/background.js';
+import { getImage } from '../engine/assets.js';
 
 const STATE_BRIEFING = 'briefing';
 const STATE_PLAYING = 'playing';
@@ -648,6 +649,12 @@ export class GameScene {
     }
 
     _renderBriefing(renderer) {
+        const art = getImage(`stage_${this.stage.id}`);
+        if (art) {
+            this._renderBriefingArt(renderer, art);
+            return;
+        }
+
         // Darken
         renderer.drawRect(0, 0, WIDTH, HEIGHT, 'rgba(0,0,0,0.6)');
 
@@ -666,6 +673,52 @@ export class GameScene {
 
         if (this.stateTimer > 1 && Math.floor(this.stateTimer * 2) % 2 === 0) {
             renderer.drawTextCentered('PRESIONA ENTER', 280, '#aaa', 1);
+        }
+    }
+
+    // Full-screen stage art; the briefing sits on dark gradients at the top and
+    // bottom so the middle of the illustration stays clear.
+    _renderBriefingArt(renderer, art) {
+        const ctx = renderer.offCtx;
+        renderer.drawImage(art, 0, 0, WIDTH, HEIGHT);
+
+        const top = ctx.createLinearGradient(0, 0, 0, 72);
+        top.addColorStop(0, 'rgba(0,0,0,0.75)');
+        top.addColorStop(0.6, 'rgba(0,0,0,0.45)');
+        top.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = top;
+        ctx.fillRect(0, 0, WIDTH, 72);
+
+        const bottom = ctx.createLinearGradient(0, 262, 0, HEIGHT);
+        bottom.addColorStop(0, 'rgba(0,0,0,0)');
+        bottom.addColorStop(0.3, 'rgba(0,0,0,0.7)');
+        bottom.addColorStop(1, 'rgba(0,0,0,0.88)');
+        ctx.fillStyle = bottom;
+        ctx.fillRect(0, 262, WIDTH, HEIGHT - 262);
+
+        const text = (str, y, color, size = 1) => {
+            renderer.drawTextCentered(str, y + 1, 'rgba(0,0,0,0.85)', size);
+            renderer.drawTextCentered(str, y, color, size);
+        };
+
+        text(`ETAPA ${this.stage.id}`, 8, '#88ccff', 2);
+        text(this.stage.name, 30, '#fff', 2);
+
+        text(this.stage.subtitle, 294, '#ffdd88');
+        const lines = this.stage.briefing.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            text(lines[i], 310 + i * 12, '#c8d4e0');
+        }
+        text(`Avion: ${this.aircraftData.name}`, 342, this.aircraftData.color);
+
+        if (this.stateTimer > 1 && Math.floor(this.stateTimer * 2) % 2 === 0) {
+            text('PRESIONA ENTER', 364, '#ccc');
+        }
+
+        // Fade in from the black of the stage transition.
+        const fade = 1 - Math.min(this.stateTimer / 0.6, 1);
+        if (fade > 0) {
+            renderer.drawRect(0, 0, WIDTH, HEIGHT, `rgba(0,0,0,${fade})`);
         }
     }
 

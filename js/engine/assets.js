@@ -81,6 +81,11 @@ export async function loadAllAssets() {
         loadImage('explosion_2', 'assets/explosion_2.png'),
         loadImage('explosion_3', 'assets/explosion_3.png'),
         loadImage('explosion_4', 'assets/explosion_4.png'),
+        loadImage('stage_1', 'assets/stage_1.png'),
+        loadImage('stage_2', 'assets/stage_2.png'),
+        loadImage('stage_3', 'assets/stage_3.png'),
+        loadImage('stage_4', 'assets/stage_4.png'),
+        loadImage('stage_5', 'assets/stage_5.png'),
     ]);
 
     // Not awaited: the title falls back to title_art until the video is ready.

@@ -22,8 +22,10 @@ import sys
 import numpy as np
 from PIL import Image
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASSETS = os.path.join(ROOT, 'assets')
+from pixelart import (ASSETS, BAYER4, BAYER8, JET_ROWS, blit, build_cloud, dithered_bands,
+                      draw_explosion, ffmpeg_exe, hash1, load_sprite, pixel_map, px, rect, rgb,
+                      upscale)
+
 OUT = os.path.join(ASSETS, 'title_video.mp4')
 
 W, H = 256, 142
@@ -37,106 +39,7 @@ WIPE = 0.5
 B_START = A_END
 LOOP = DURATION
 
-_B4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]])
-BAYER4 = _B4 / 16.0
-BAYER8 = np.block([[4 * _B4, 4 * _B4 + 2], [4 * _B4 + 3, 4 * _B4 + 1]]) / 64.0
 
-
-def rgb(h):
-    return np.array([int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)], dtype=np.float32)
-
-
-def hash1(n):
-    n = (n * 374761393 + 668265263) & 0xFFFFFFFF
-    n = ((n ^ (n >> 13)) * 1274126177) & 0xFFFFFFFF
-    return ((n ^ (n >> 16)) & 0xFFFFFF) / float(0xFFFFFF)
-
-
-def dithered_bands(stops, rows):
-    """Vertical gradient quantised to `stops`, ordered-dithered between bands."""
-    pal = [rgb(s) for s in stops]
-    out = np.zeros((rows, W, 3), dtype=np.float32)
-    ys, xs = np.mgrid[0:rows, 0:W]
-    t = ys / max(rows - 1, 1) * (len(pal) - 1)
-    lo = np.floor(t).astype(int)
-    frac = t - lo
-    thresh = BAYER4[ys % 4, xs % 4]
-    idx = np.clip(lo + (frac > thresh), 0, len(pal) - 1)
-    for i, c in enumerate(pal):
-        out[idx == i] = c
-    return out
-
-
-# ---------------------------------------------------------------- sprites
-
-def load_sprite(name, w, h, rotate=0):
-    """Downscale a game sprite and harden its alpha like the in-game look."""
-    img = Image.open(os.path.join(ASSETS, name)).convert('RGBA')
-    img = img.resize((w, h), Image.BOX)
-    if rotate:
-        img = img.rotate(rotate, expand=True)
-    a = np.array(img).astype(np.float32)
-    a[..., 3] = np.where(a[..., 3] >= 110, 255, 0)
-    return a
-
-
-def blit(frame, spr, x, y, alpha=1.0, tint=None, shade=1.0):
-    x, y = int(round(x)), int(round(y))
-    sh, sw = spr.shape[:2]
-    x0, y0 = max(x, 0), max(y, 0)
-    x1, y1 = min(x + sw, W), min(y + sh, H)
-    if x0 >= x1 or y0 >= y1:
-        return
-    src = spr[y0 - y:y1 - y, x0 - x:x1 - x]
-    a = (src[..., 3:4] / 255.0) * alpha
-    col = src[..., :3] * shade if tint is None else np.broadcast_to(tint, src[..., :3].shape)
-    dst = frame[y0:y1, x0:x1]
-    frame[y0:y1, x0:x1] = dst * (1 - a) + col * a
-
-
-def px(frame, x, y, color, alpha=1.0):
-    x, y = int(x), int(y)
-    if 0 <= x < W and 0 <= y < H:
-        frame[y, x] = frame[y, x] * (1 - alpha) + color * alpha
-
-
-def rect(frame, x, y, w, h, color, alpha=1.0):
-    x0, y0 = max(int(x), 0), max(int(y), 0)
-    x1, y1 = min(int(x + w), W), min(int(y + h), H)
-    if x0 < x1 and y0 < y1:
-        frame[y0:y1, x0:x1] = frame[y0:y1, x0:x1] * (1 - alpha) + color * alpha
-
-
-def pixel_map(rows, palette):
-    h, w = len(rows), max(len(r) for r in rows)
-    spr = np.zeros((h, w, 4), dtype=np.float32)
-    for y, row in enumerate(rows):
-        for x, ch in enumerate(row):
-            if ch in palette:
-                spr[y, x, :3] = rgb(palette[ch])
-                spr[y, x, 3] = 255
-    return spr
-
-
-def upscale(spr, k):
-    return spr.repeat(k, axis=0).repeat(k, axis=1)
-
-
-# Side-view delta jet (Mirage/Dagger silhouette) facing right.
-JET_ROWS = [
-    "    oo                           ",
-    "    ooo                          ",
-    "    o#oo                         ",
-    "    o##oo              cc        ",
-    "    o###ooooooooooooooccCco      ",
-    "   ####################ccc#ooo   ",
-    "  ##########################o##o ",
-    "  ###############################",
-    "   #########################%%%  ",
-    "      ##########%%%%%%%%%%%%     ",
-    "        ########%%               ",
-    "          #####                  ",
-]
 JET = pixel_map(JET_ROWS, {'#': '#1a1026', '%': '#2a1a3a', 'o': '#f29a4a',
                            'c': '#6a86b0', 'C': '#dff0ff'})
 JET2 = upscale(JET, 2)
@@ -156,33 +59,11 @@ SHIP_ROWS = [
 ]
 SHIP = pixel_map(SHIP_ROWS, {'#': '#1e1230', 'o': '#ffd070'})
 
-EXPLOSIONS = [Image.open(os.path.join(ASSETS, f'explosion_{i}.png')).convert('RGBA') for i in range(5)]
-_exp_cache = {}
-
-
-def explosion(i, size):
-    key = (i, size)
-    if key not in _exp_cache:
-        img = EXPLOSIONS[i].resize((size, size), Image.BOX)
-        a = np.array(img).astype(np.float32)
-        a[..., 3] = np.where(a[..., 3] >= 100, 255, 0)
-        _exp_cache[key] = a
-    return _exp_cache[key]
-
-
-def draw_explosion(frame, cx, cy, age, size, dur=0.6):
-    if age < 0 or age >= dur:
-        return
-    i = min(int(age / dur * 5), 4)
-    s = explosion(i, size)
-    blit(frame, s, cx - size / 2, cy - size / 2)
-
-
 # ---------------------------------------------------------------- shot A
 
 SKY = dithered_bands(['#140f33', '#241646', '#3a1f5c', '#5e2a6c', '#8e3a6e',
-                      '#c24e66', '#e56a58', '#f2934a', '#ffc46a'], 92)
-SEA = dithered_bands(['#6a2f58', '#4a2450', '#321c46', '#22163a', '#161030'], H - 92)
+                      '#c24e66', '#e56a58', '#f2934a', '#ffc46a'], 92, W)
+SEA = dithered_bands(['#6a2f58', '#4a2450', '#321c46', '#22163a', '#161030'], H - 92, W)
 HORIZON = 92
 SUN_X, SUN_Y, SUN_R = 176, 86, 22
 
@@ -354,28 +235,8 @@ DESTROYER_TOP = load_sprite('boss_destroyer.png', 22, 110, rotate=90)
 MISSILE = load_sprite('missile.png', 6, 14, rotate=-90)
 BURNER = load_sprite('afterburner.png', 18, 16, rotate=-90)
 
-def build_cloud():
-    puffs = [(22, 26, 14), (40, 18, 17), (60, 24, 15), (78, 30, 12), (34, 36, 12), (56, 38, 13), (12, 34, 9)]
-    cw, ch = 96, 54
-    spr = np.zeros((ch, cw, 4), dtype=np.float32)
-    top, mid, low = rgb('#ffffff'), rgb('#dcecfa'), rgb('#a9c4de')
-    for y in range(ch):
-        for x in range(cw):
-            best = None
-            for pxc, pyc, r in puffs:
-                d = ((x - pxc) ** 2 + (y - pyc) ** 2) ** 0.5
-                if d <= r and (best is None or pyc > best[1]):
-                    best = (d, pyc, r)
-            if best is None:
-                continue
-            d, pyc, r = best
-            shade = (y - pyc) / r + BAYER4[y % 4, x % 4] * 0.5 - 0.25
-            spr[y, x, :3] = low if shade > 0.45 else (mid if shade > -0.2 else top)
-            spr[y, x, 3] = 255
-    return spr
-
-
-CLOUD = build_cloud()
+CLOUD = build_cloud([(22, 26, 14), (40, 18, 17), (60, 24, 15), (78, 30, 12), (34, 36, 12),
+                     (56, 38, 13), (12, 34, 9)], (96, 54))
 
 # (sprite, x, y) formation, flying right.
 FORMATION = [(SKYHAWK, 58, 10), (MIRAGE, 96, 51), (DAGGER, 58, 92)]
@@ -500,16 +361,6 @@ def frame_at(t):
     if t < LOOP - WIPE:
         return shot_b(tb)
     return wipe(shot_b(tb), shot_a(t - LOOP), (t - (LOOP - WIPE)) / WIPE)
-
-
-def ffmpeg_exe():
-    if os.environ.get('FFMPEG'):
-        return os.environ['FFMPEG']
-    try:
-        import imageio_ffmpeg
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except ImportError:
-        return 'ffmpeg'
 
 
 def main():

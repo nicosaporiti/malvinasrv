@@ -1,4 +1,4 @@
-const CACHE_NAME = 'malvinas-srv-v4';
+const CACHE_NAME = 'malvinas-srv-v6';
 
 const PRECACHE_URLS = [
     './',
@@ -53,6 +53,11 @@ const PRECACHE_URLS = [
     'assets/music_title.mp3',
     'assets/music_victory.mp3',
     'assets/skyhawk.png',
+    'assets/stage_1.png',
+    'assets/stage_2.png',
+    'assets/stage_3.png',
+    'assets/stage_4.png',
+    'assets/stage_5.png',
     'assets/title_art.png',
     'assets/title_video.mp4',
     'assets/turret_damaged.png',
@@ -91,9 +96,12 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
 
+    // Network-first must bypass the browser's HTTP cache too: without this a
+    // heuristically cached module can mask a new deploy. `no-cache` still
+    // revalidates cheaply (304) and the SW cache remains the offline fallback.
     if (request.mode === 'navigate') {
         event.respondWith(
-            fetch(request)
+            fetch(request, { cache: 'no-cache' })
                 .then((networkResponse) => {
                     const responseClone = networkResponse.clone();
                     caches.open(CACHE_NAME).then((cache) => cache.put('index.html', responseClone));
@@ -105,7 +113,7 @@ self.addEventListener('fetch', (event) => {
     }
 
     event.respondWith(
-        fetch(request)
+        fetch(request, { cache: 'no-cache' })
             .then((networkResponse) => {
                 if (networkResponse && networkResponse.status === 200) {
                     const responseClone = networkResponse.clone();
